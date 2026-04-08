@@ -18,10 +18,10 @@ image
 Click out of the repository list and refresh the page
 Scroll down and find Pv_opt, click on it and click 'Install'
 
-Navigate to /addon_configs/6adb4f0d_predbat directory in Home Assistant file editor or via a Samba/SSH mount
+Navigate to /addon_configs/xxxxxxxxxxxx directory in Home Assistant file editor or via a Samba/SSH mount
 Edit/replace the apps.yaml with the correct completed one.
-Click restart on the app if need be (it might start automatically anyhow)
-Please note the predbat.log will be in this addon_configs directory also.
+Click restart on the app if need be (it might start automatically anyway)
+Please note the xxxxxxx.log will be in this addon_configs directory also.
 
 Do not run this at the same time as Pv_opt within AppDaemon (stop that first and remember to only have one on auto-start)
 
