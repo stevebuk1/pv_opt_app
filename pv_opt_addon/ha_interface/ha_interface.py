@@ -429,7 +429,10 @@ class Hass:
             value = new_attrs.get(filter_attr) if filter_attr else new_state
 
             try:
-                callback(entity_id, filter_attr, old_state, value, {})
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None, functools.partial(callback, entity_id, filter_attr, old_state, value, {})
+                )
             except Exception as e:
                 logger.error(f"listen_state callback error for {entity_id}: {e}")
 
@@ -440,7 +443,10 @@ class Hass:
         """
         for callback, kwargs in list(self._event_listeners.get(event_name, [])):
             try:
-                callback(event_name, data, kwargs)
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None, functools.partial(callback, event_name, data, kwargs)
+                )
             except Exception as e:
                 logger.error(f"listen_event callback error for {event_name}: {e}")
 
@@ -452,7 +458,8 @@ class Hass:
         async def _delayed():
             await asyncio.sleep(delay)
             try:
-                callback(kwargs)
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, functools.partial(callback, kwargs))
             except Exception as e:
                 logger.error(f"run_in callback error: {e}")
 
@@ -468,7 +475,8 @@ class Hass:
                     await asyncio.sleep(delay)
             while True:
                 try:
-                    callback(kwargs)
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(None, functools.partial(callback, kwargs))
                 except Exception as e:
                     logger.error(f"run_every callback error: {e}")
                 await asyncio.sleep(interval)
@@ -527,10 +535,15 @@ class Hass:
         Starts the WebSocket listener concurrently with initialize() so
         both run in the same event loop.  Sets _init_done after initialize()
         returns so the WS listener knows it's safe to subscribe to custom events.
+
+        initialize() (and all callbacks it triggers) is run in a thread executor
+        so that blocking time.sleep() calls inside pv_opt don't stall the asyncio
+        event loop — keeping the WebSocket alive and MQTT responsive throughout.
         """
         ws_task = asyncio.ensure_future(self._start_ws_listener())
         try:
-            await self.initialize()
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._initialize_sync)
             # Signal the WS listener that all listen_event() calls are registered.
             self._init_done.set()
             logger.info("initialize() complete — WS custom event subscriptions unblocked")
@@ -542,3 +555,16 @@ class Hass:
             logger.error(f"Fatal error in _run(): {e}")
             ws_task.cancel()
             raise
+
+    def _initialize_sync(self):
+        """
+        Synchronous wrapper around initialize() for run_in_executor.
+        Runs initialize() (which is async) in a fresh event loop on the
+        worker thread, keeping the main loop free during any time.sleep() calls.
+        """
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(self.initialize())
+        finally:
+            loop.close()
