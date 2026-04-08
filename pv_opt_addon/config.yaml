@@ -1,0 +1,128 @@
+---
+name: PV Opt
+version: "5.0.0"
+slug: pv_opt
+description: Solar/battery optimisation for Home Assistant. Optimises charge and discharge schedules to minimise energy costs using Octopus Energy tariffs and Solcast solar forecasts.
+url: https://github.com/stevebuk1/pv_opt_app
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+
+# Home Assistant supervised access
+homeassistant_api: true
+auth_api: false
+
+# Add-on I/O
+stdin: false
+legacy: false
+
+# Networking - MQTT broker support
+ports:
+  1883/tcp: null  # Only exposed if user connects to external MQTT
+
+# Startup ordering
+init: false
+startup: application
+
+# Persistent data directory
+map:
+  - data
+
+# Watchdog
+watchdog: http://[HOST]:8099/healthz
+
+# Backup
+backup_exclude:
+  - "*.log"
+
+schema:
+  # =========================================================
+  # Core / system options
+  # =========================================================
+  debug: bool
+  debug_categories: str?
+  prefix: str?
+  log_level:
+    enum:
+      - trace
+      - debug
+      - info
+      - notice
+      - warning
+      - error
+      - fatal
+  read_only: bool
+  forced_discharge: bool
+  allow_cyclic: bool
+  overwrite_ha_on_restart: bool
+  list_entities: bool
+  redact_personal_data_from_log: bool
+  manual_tz: str?
+
+  # =========================================================
+  # Inverter
+  # =========================================================
+  inverter_type:
+    enum:
+      - SOLIS_SOLAX_MODBUS
+      - SOLIS_CORE_MODBUS
+      - SOLIS_SOLARMAN
+      - SOLAX_MODBUS
+      - GIVENERGY_CLOUD
+      - GIVENERGY_LOCAL
+      - SUNSYNK_SOLARMAN
+      - SUNSYNK_SOLISCLOUD
+  device_name: str?
+  inverter_sn: str?
+
+  # =========================================================
+  # Plant parameters
+  # =========================================================
+  battery_capacity_wh: int
+  inverter_efficiency_percent: int?
+  charger_efficiency_percent: int?
+  maximum_dod_percent: int?
+  charger_power_watts: int?
+  inverter_power_watts: int?
+  inverter_loss_watts: int?
+  battery_current_limit_amps: int?
+
+  # =========================================================
+  # Solcast
+  # =========================================================
+  use_solar: bool?
+  id_solcast_today: str?
+  id_solcast_tomorrow: str?
+
+  # =========================================================
+  # Octopus Energy
+  # =========================================================
+  octopus_auto: bool?
+  octopus_account: str?
+  octopus_api_key: str?
+  octopus_import_mpan: str?
+  octopus_export_mpan: str?
+  octopus_import_tariff_code: str?
+  octopus_export_tariff_code: str?
+  # Allow arbitrary extra keys for entity IDs (id_*) and
+  # any advanced/undocumented parameters carried forward
+  # from apps.yaml. Validated at runtime by pv_opt itself.
+
+options:
+  # Defaults shown here must match pv_opt.py defaults
+  debug: false
+  log_level: info
+  prefix: pvopt
+  read_only: false
+  forced_discharge: true
+  allow_cyclic: false
+  overwrite_ha_on_restart: false
+  list_entities: true
+  redact_personal_data_from_log: true
+  inverter_type: SOLIS_SOLAX_MODBUS
+  device_name: solis
+  battery_capacity_wh: 10000
+  use_solar: true

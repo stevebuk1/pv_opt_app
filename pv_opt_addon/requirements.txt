@@ -1,0 +1,21 @@
+# PV Opt Add-On Python requirements
+# Core scientific stack
+numpy>=1.26,<3
+pandas>=2.0,<3
+
+# HTTP - used by pvpy.py for Octopus/Solcast API calls
+requests>=2.31
+
+# MQTT - replaces AppDaemon's MQTT plugin
+# Used for autodiscovery entities (switches, sensors via MQTT)
+paho-mqtt>=1.6,<3
+
+# WebSocket - used by the HA interface shim for state subscriptions
+websockets>=12.0
+
+# Timezone
+pytz>=2023.3
+python-dateutil>=2.8
+
+# Optional: faster JSON
+orjson>=3.9
