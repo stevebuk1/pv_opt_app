@@ -12,7 +12,7 @@ This App (previously known as an AddOn) can be used with Home Assistant to run P
 
 Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.
 Go to settings, apps, install app, custom repositories
-Add '[https://github.com/springfall2008/predbat_addon](https://github.com/stevebuk1/pv_opt_app)' as a new repository
+Add '[[https://github.com/springfall2008/predbat_addon](https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository
 image
 
 Click out of the repository list and refresh the page
