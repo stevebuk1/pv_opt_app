@@ -9,9 +9,9 @@ This App (previously known as an AddOn) can be used with Home Assistant to run P
 
 Pv_opt itself is unchanged from the AppDaemon version and so will behave identically. 
 
-<h2>Upgrade Instructions</h2>
+<h2>Upgrading from PV_opt running under AppDaemon</h2>
 
-If you are currently running PV_opt under AppDaemon, follow this section, otherwise go to Installation Instuctions. 
+If you are currently running PV_opt under AppDaemon, follow this section, otherwise go to Installation Instuctions below . 
 
 Make a copy of your config.yaml in /HomeAssistant/AppDaemon/apps/config.config.yaml
 
