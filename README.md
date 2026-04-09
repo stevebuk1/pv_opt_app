@@ -13,7 +13,26 @@ Pv_opt itself is unchanged from the AppDaemon version and so will behave identic
 
 If you are currently running PV_opt under AppDaemon, follow this section, otherwise go to Installation Instuctions. 
 
+Make a copy of your config.yaml in /HomeAssistant/AppDaemon/apps/config.config.yaml
+
+Stop Appdaemon (or remove Pv_opt from AppDaemon if you have other AppDeamon apps still running)
+
+Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.
+Go to settings, apps, install app, custom repositories
+
+Add '[https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository image
+
+Take your preivously copied config.yaml and put it at /addon_configs/xxxxxxxxxxxx. 
+
+Click restart on the app if need be (it might start automatically anyway)
+
+Please note the xxxxxxx.log will be in this addon_configs directory also.
+
+Remember: Do not run the Pv_opt App at the same time as Pv_opt within AppDaemon. 
+
 <h2>Installation Instructions</h2>
+
+Follow these instructions if you are installing Pv_opt for the very first time. 
 
 Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.
 Go to settings, apps, install app, custom repositories
@@ -29,9 +48,4 @@ Edit/replace config.yaml with a correct completed one.
 Click restart on the app if need be (it might start automatically anyway)
 
 Please note the xxxxxxx.log will be in this addon_configs directory also.
-
-Remember: Do not run this at the same time as Pv_opt within AppDaemon (stop that first and remember to only have one on auto-start)
-
-
-
 
