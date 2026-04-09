@@ -107,12 +107,21 @@ schema:
   octopus_export_mpan: str?
   octopus_import_tariff_code: str?
   octopus_export_tariff_code: str?
+
+  # =========================================================
+  # MQTT credentials
+  # (create a dedicated user in HA Settings > People > Users)
+  # =========================================================
+  mqtt_user: str
+  mqtt_pass: password
   # Allow arbitrary extra keys for entity IDs (id_*) and
   # any advanced/undocumented parameters carried forward
   # from apps.yaml. Validated at runtime by pv_opt itself.
 
 options:
   # Defaults shown here must match pv_opt.py defaults
+  mqtt_user: ""
+  mqtt_pass: ""
   debug: false
   log_level: info
   prefix: pvopt

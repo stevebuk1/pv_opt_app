@@ -13,6 +13,14 @@ bashio::log.info "Starting PV Opt ${BUILD_VERSION:-dev}"
 # The HA Supervisor injects these for add-ons with homeassistant_api: true
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 export HA_URL="http://supervisor/core"
+export HA_WS_URL="ws://supervisor/core/api/websocket"
+
+# ── MQTT credentials ──────────────────────────────────────────────────────────
+# Set in the Add-On UI (Settings > People > Users to create a dedicated user)
+export MQTT_HOST="core-mosquitto"
+export MQTT_PORT="1883"
+export MQTT_USER="$(bashio::config 'mqtt_user')"
+export MQTT_PASS="$(bashio::config 'mqtt_pass')"
 
 # ── Log level ─────────────────────────────────────────────────────────────────
 LOG_LEVEL=$(bashio::config 'log_level' 'info')
