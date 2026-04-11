@@ -37,6 +37,7 @@ import functools
 import json
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
@@ -166,6 +167,11 @@ class Hass:
         self._mqtt_shim: Optional[MQTTShim] = None
         self._handle_counter = 0
         self._init_done = asyncio.Event()   # set by _run() after initialize() returns
+
+        # Serialises all callbacks that may call optimise() so that a
+        # state-change or event trigger cannot start a second optimise()
+        # while one is already running (replaces AppDaemon's @app_lock).
+        self._optimise_lock = threading.Lock()
 
     def _next_handle(self, prefix: str) -> str:
         self._handle_counter += 1
@@ -431,7 +437,8 @@ class Hass:
             try:
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(
-                    None, functools.partial(callback, entity_id, filter_attr, old_state, value, {})
+                    None, self._locked_call,
+                    functools.partial(callback, entity_id, filter_attr, old_state, value, {})
                 )
             except Exception as e:
                 logger.error(f"listen_state callback error for {entity_id}: {e}")
@@ -445,10 +452,24 @@ class Hass:
             try:
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(
-                    None, functools.partial(callback, event_name, data, kwargs)
+                    None, self._locked_call,
+                    functools.partial(callback, event_name, data, kwargs)
                 )
             except Exception as e:
                 logger.error(f"listen_event callback error for {event_name}: {e}")
+
+    def _locked_call(self, fn: Callable):
+        """
+        Acquire _optimise_lock then call fn().
+        All executor callbacks go through here so that only one
+        pv_opt callback (optimise, state change, event trigger, etc.)
+        runs at a time — replicating what AppDaemon's @app_lock did.
+        A second trigger arriving while optimise() is running will block
+        here and run immediately after the first completes, rather than
+        being dropped or running concurrently.
+        """
+        with self._optimise_lock:
+            fn()
 
     # ------------------------------------------------------------------
     # Scheduler
@@ -459,7 +480,9 @@ class Hass:
             await asyncio.sleep(delay)
             try:
                 loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, functools.partial(callback, kwargs))
+                await loop.run_in_executor(
+                    None, self._locked_call, functools.partial(callback, kwargs)
+                )
             except Exception as e:
                 logger.error(f"run_in callback error: {e}")
 
@@ -476,7 +499,9 @@ class Hass:
             while True:
                 try:
                     loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(None, functools.partial(callback, kwargs))
+                    await loop.run_in_executor(
+                        None, self._locked_call, functools.partial(callback, kwargs)
+                    )
                 except Exception as e:
                     logger.error(f"run_every callback error: {e}")
                 await asyncio.sleep(interval)
