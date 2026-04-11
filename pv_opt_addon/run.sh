@@ -26,20 +26,31 @@ export MQTT_PASS="$(bashio::config 'mqtt_pass')"
 LOG_LEVEL=$(bashio::config 'log_level' 'info')
 bashio::log.level "${LOG_LEVEL}"
 
-# ── Validate mandatory options ────────────────────────────────────────────────
-if ! bashio::config.exists 'battery_capacity_wh'; then
-    bashio::log.fatal "battery_capacity_wh is required but not set"
-    exit 1
-fi
+# ── pv_opt config path ───────────────────────────────────────────────────────
+# /config is the HA config directory (mounted read-only via config:ro in config.yaml)
+# Add-On config location:   /config/pv_opt/config.yaml
+# AppDaemon config location: /config/appdaemon/apps/pv_opt/config/config.yaml
+ADDON_CONFIG="/config/pv_opt/config.yaml"
+APPDAEMON_CONFIG="/config/appdaemon/apps/pv_opt/config/config.yaml"
+export PV_OPT_CONFIG="$(bashio::config 'config_path' "${ADDON_CONFIG}")"
+bashio::log.info "pv_opt config path: ${PV_OPT_CONFIG}"
 
-if ! bashio::config.exists 'inverter_type'; then
-    bashio::log.fatal "inverter_type is required but not set"
-    exit 1
+if [ ! -f "${PV_OPT_CONFIG}" ]; then
+    mkdir -p "$(dirname "${PV_OPT_CONFIG}")"
+    if [ -f "${APPDAEMON_CONFIG}" ]; then
+        # Migrating from AppDaemon — copy existing config across
+        bashio::log.info "Found AppDaemon config at ${APPDAEMON_CONFIG}"
+        bashio::log.info "Copying to Add-On location: ${PV_OPT_CONFIG}"
+        cp "${APPDAEMON_CONFIG}" "${PV_OPT_CONFIG}"
+        bashio::log.info "Migration complete — config.yaml copied to ${PV_OPT_CONFIG}"
+    else
+        # Fresh install — copy built-in default
+        bashio::log.warning "No config.yaml found — installing default"
+        cp /app/config.yaml.default "${PV_OPT_CONFIG}"
+        bashio::log.info "Default config.yaml written to ${PV_OPT_CONFIG}"
+        bashio::log.warning "Please edit ${PV_OPT_CONFIG} to match your system, then restart the Add-On"
+    fi
 fi
-
-bashio::log.info "Inverter type: $(bashio::config 'inverter_type')"
-bashio::log.info "Battery capacity: $(bashio::config 'battery_capacity_wh') Wh"
-bashio::log.info "Read-only mode: $(bashio::config 'read_only' 'false')"
 
 # ── Launch ────────────────────────────────────────────────────────────────────
 # Options are passed via /data/options.json which ha_interface.py reads directly.

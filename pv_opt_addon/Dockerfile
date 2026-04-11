@@ -25,6 +25,10 @@ COPY apps/pv_opt/solis.py       .
 COPY apps/pv_opt/solax.py       .
 COPY apps/pv_opt/sunsynk.py     .
 
+# Default config for first-time installs — copied to /config/pv_opt/ by run.sh
+# if no config.yaml already exists there
+COPY apps/pv_opt/config.yaml    /app/config.yaml.default
+
 # Shim replaces AppDaemon's hass.Hass base class
 COPY pv_opt_addon/ha_interface/ ./ha_interface/
 

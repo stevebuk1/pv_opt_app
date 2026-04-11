@@ -19,7 +19,8 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-VERSION = "5.0.0"
+
+VERSION = "5.1.0-Beta-1"
 
 UNITS = {
     "current": "A",
@@ -153,6 +154,7 @@ DEFAULT_CONFIG = {
     "include_export": {"default": True, "domain": "switch"},
     "forced_discharge": {"default": True, "domain": "switch"},
     "allow_cyclic": {"default": False, "domain": "switch"},
+    "fill_first": {"default": False, "domain": "switch"},
     "use_solar": {"default": True, "domain": "switch"},
     "ev_part_of_house_load": {"default": True, "domain": "switch"},
     "prevent_discharge": {"default": False, "domain": "switch"},
@@ -261,7 +263,7 @@ DEFAULT_CONFIG = {
         "default": 5.0,
         "attributes": {
             "min": 0.0,
-            "max": 1000.0,
+            "max": 100.0,
             "step": 5,
             "mode": "box",
         },
@@ -2796,14 +2798,22 @@ class PVOpt(hass.Hass):
             "Optimised Charging": {
                 "export": False,
                 "discharge": False,
+                "fill_first": False,
             },
             "Optimised PV Export": {
                 "export": True,
                 "discharge": False,
+                "fill_first": False,
             },
             "Forced Discharge": {
                 "export": True,
                 "discharge": True,
+                "fill_first": False,
+            },
+            "Forced Discharge Fill First": {
+                "export": True,
+                "discharge": True,
+                "fill_first": True,
             },
         }
 
@@ -2812,6 +2822,9 @@ class PVOpt(hass.Hass):
 
         elif not self.get_config("forced_discharge"):
             self.selected_case = "Optimised PV Export"
+
+        elif self.get_config("fill_first"):
+            self.selected_case = "Forced Discharge Fill First"
 
         else:
             self.selected_case = "Forced Discharge"
@@ -2830,6 +2843,7 @@ class PVOpt(hass.Hass):
                     log=True,
                     use_export=cases[case]["export"],
                     discharge=cases[case]["discharge"],
+                    fill_first=cases[case]["fill_first"],
                 )
 
                 self.optimised_cost[case] = self.contract.net_cost(self.flows[case], sum=False)
@@ -2844,6 +2858,7 @@ class PVOpt(hass.Hass):
                     log=(case == self.selected_case),
                     use_export=cases[case]["export"],
                     discharge=cases[case]["discharge"],
+                    fill_first=cases[case]["fill_first"],
                 )
 
                 self.optimised_cost[case] = self.contract.net_cost(self.flows[case], sum=False)
@@ -2858,7 +2873,7 @@ class PVOpt(hass.Hass):
         # )
 
         self.ulog("Optimisation Summary")
-        self.log(f"  {'Base cost:':40s} {self.optimised_cost['Base'].sum():6.1f}p")
+        self.log(f"  {'Base cost:':60s} {self.optimised_cost['Base'].sum():6.1f}p")
         cost_today = self._cost_actual().sum()
         self.summary_costs = {
             "Base": {
@@ -2867,7 +2882,7 @@ class PVOpt(hass.Hass):
             }
         }
         for case in cases:
-            str_log = f"  {f'Optimised cost ({case}):':40s} {self.optimised_cost[case].sum():6.1f}p"
+            str_log = f"  {f'Optimised cost ({case}):':60s} {self.optimised_cost[case].sum():6.1f}p"
             self.summary_costs[case] = {"cost": ((self.optimised_cost[case].sum() + cost_today) / 100).round(2)}
             if case == self.selected_case:
                 self.summary_costs[case]["Selected"] = " <=== Current Setup"
@@ -3759,6 +3774,7 @@ class PVOpt(hass.Hass):
         cost,
         df,
         attributes={},
+        full=True,
     ):
         cost_today = self._cost_actual()
         midnight = pd.Timestamp.now(tz="UTC").normalize() + pd.Timedelta(24, "hours")
@@ -3801,10 +3817,14 @@ class PVOpt(hass.Hass):
                 ),
                 "cost_tomorrow": round((cost["cost"].loc[midnight:].sum()) / 100, 2),
             }
-            | {col: df[["period_start", col]].to_dict("records") for col in cols if col in df.columns}
-            | {"cost": cost[["period_start", "cumulative_cost"]].to_dict("records")}
-            | attributes
-        )
+        ) | attributes
+
+        if full:
+            attributes = (
+                {col: df[["period_start", col]].to_dict("records") for col in cols if col in df.columns}
+                | {"cost": cost[["period_start", "cumulative_cost"]].to_dict("records")}
+                | attributes
+            )
 
         self.write_to_hass(
             entity=entity,
@@ -3849,6 +3869,26 @@ class PVOpt(hass.Hass):
             df=self.flows[self.selected_case],
             attributes={"Summary": self.summary_costs},
         )
+
+        self.write_to_hass(
+            f"sensor.{self.prefix}_cost_today",
+            np.round(self._cost_actual().sum() / 100, 2),
+            attributes={
+                "friendly_name": f"PV_Opt Cost Today",
+                "device_class": "monetary",
+                "state_class": "measurement",
+                "unit_of_measurement": "GBP",
+            },
+        )
+
+        for case in self.summary_costs:
+            self.write_cost(
+                f"PV_Opt Cost ({case})",
+                entity=f"sensor.{self.prefix}_cost_{case.lower().replace(" ","_")}",
+                cost=self.optimised_cost[case],
+                df=self.flows[case],
+                full=False,
+            )
 
         if len(self.windows) > 0:
             hass_start = self.charge_start_datetime
@@ -4956,9 +4996,6 @@ class PVOpt(hass.Hass):
         if item is not None:
             return DEFAULT_CONFIG[item]["default"]
 
-
-# %%
-
 if __name__ == "__main__":
     import asyncio
     import json
@@ -4966,20 +5003,54 @@ if __name__ == "__main__":
     import os
     import sys
 
+    import yaml
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-8s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+    # ── Load Add-On UI options (MQTT credentials, log level, etc.) ────────────
     OPTIONS_FILE = "/data/options.json"
     if not os.path.exists(OPTIONS_FILE):
-        logging.warning(f"{OPTIONS_FILE} not found — using empty config")
-        options = {}
+        logging.warning(f"{OPTIONS_FILE} not found — using empty Add-On options")
+        addon_options = {}
     else:
         with open(OPTIONS_FILE) as f:
-            options = json.load(f)
+            addon_options = json.load(f)
+
+    # ── Load pv_opt config.yaml (the main app configuration) ─────────────────
+    # Default location mirrors the AppDaemon path inside the container.
+    # Users can override by setting config_path in the Add-On UI.
+    CONFIG_FILE = addon_options.get("config_path", "/config/pv_opt/config.yaml")
+    if not os.path.exists(CONFIG_FILE):
+        logging.warning(
+            f"pv_opt config.yaml not found at {CONFIG_FILE} — "
+            f"running with Add-On UI options only. "
+            f"Copy your config.yaml to {CONFIG_FILE} to configure pv_opt."
+        )
+        pv_opt_config = {}
+    else:
+        with open(CONFIG_FILE) as f:
+            raw = yaml.safe_load(f)
+        # AppDaemon wraps settings under a top-level 'pv_opt:' key — strip it.
+        if isinstance(raw, dict) and "pv_opt" in raw:
+            pv_opt_config = raw["pv_opt"]
+            # Remove AppDaemon-only keys that have no meaning here
+            for ad_key in ("module", "class", "log"):
+                pv_opt_config.pop(ad_key, None)
+        else:
+            pv_opt_config = raw or {}
+        logging.info(f"Loaded pv_opt config from {CONFIG_FILE}")
+
+    # ── Merge: pv_opt config.yaml takes precedence over Add-On UI options ────
+    # Add-On UI options (MQTT, log_level, config_path) fill in anything not
+    # already set by config.yaml, so users never need to duplicate settings.
+    options = {**addon_options, **pv_opt_config}
 
     app = PVOpt(options=options)
 
     asyncio.run(app._run())
+
+# %%
