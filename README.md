@@ -13,18 +13,18 @@ Pv_opt itself is unchanged from the AppDaemon version and so will behave identic
 
 If you are currently running PV_opt under AppDaemon, follow this section, otherwise go to Installation Instuctions below . 
 
-* Make a copy of your config.yaml in /HomeAssistant/AppDaemon/apps/config.config.yaml
 * Stop Appdaemon (or remove Pv_opt from AppDaemon if you have other AppDeamon apps still running)
 * Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.
 * Go to settings, apps, install app
 * Click the 3 vertical dots at top right and select "Repositories". 
 * Add '[https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository
-* Add the MQTT username and password that was originally created when installing Mosquito
-* Take your preivously copied config.yaml and put it at /addon_configs/xxxxxxxxxxxx. 
+* When prompted, add the MQTT username and password that was originally created when installing Mosquito
 * Click restart on the app if need be (it might start automatically anyway)
 
 
-Please note the xxxxxxx.log will be in this addon_configs directory also.
+Please note 
+* The installer will copy across your config.yaml from the AppDaemon area, this will now live at /config/pv_opt/config.yaml
+* pv_opt.log will be in addon_configs/pv_opt/pv_opt.log
 
 Remember: Do not run the Pv_opt App at the same time as Pv_opt within AppDaemon. 
 
@@ -123,14 +123,15 @@ Navigate to Settings -> Addons -> File editor -> Configuration and set "Enforce 
 
 Both of these add-ons make it easier to edit text files on your HA Install but aren't strictly necessary. `Samba Share` also makes it easier to access the AppDaemon log files.
 
-<h3>9. Install the PV_opt app (formerly known as an AddOn)</h3>
-
+<h3>9. Install the PV_opt App (formerly known as an AddOn)</h3>
 
 * Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.
 * Go to settings, apps, install app
 * Click the 3 vertical dots at top right and select "Repositories". 
 * Add '[https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository
-* Add the MQTT username and password that was originally created when installing Mosquito
+* When prompted, add the MQTT username and password from Step4 above. 
 * Click restart on the app if need be (it might start automatically anyway)
 
-Please note the xxxxxxx.log will be in this addon_configs directory also.
+Please note 
+* config.yaml will be om /config/pv_opt/config.yaml
+* pv_opt.log will be in /addon_configs/pv_opt/pv_opt.log
