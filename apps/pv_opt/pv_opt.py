@@ -19,8 +19,7 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-
-VERSION = "5.1.0-Beta-1"
+VERSION = "5.1.2-Beta-4"
 
 UNITS = {
     "current": "A",
@@ -2649,8 +2648,8 @@ class PVOpt(hass.Hass):
         self.t0 = pd.Timestamp.now()
         self.pv_system.static_flows = pd.DataFrame(
             index=pd.date_range(
-                pd.Timestamp.utcnow().normalize(),
-                pd.Timestamp.utcnow().normalize() + pd.Timedelta(days=2),
+                pd.Timestamp.now(tz="UTC").normalize(),
+                pd.Timestamp.now(tz="UTC").normalize() + pd.Timedelta(days=2),
                 freq="30min",
                 inclusive="left",
             ),
@@ -2665,8 +2664,8 @@ class PVOpt(hass.Hass):
             return
 
         consumption = self.load_consumption(
-            pd.Timestamp.utcnow().normalize(),
-            pd.Timestamp.utcnow().normalize() + pd.Timedelta(days=2),
+            pd.Timestamp.now(tz="UTC").normalize(),
+            pd.Timestamp.now(tz="UTC").normalize() + pd.Timedelta(days=2),
         )
 
         if consumption is None:
@@ -2675,7 +2674,7 @@ class PVOpt(hass.Hass):
             return
 
         self.pv_system.static_flows = pd.concat([solcast, consumption], axis=1)
-        self.time_now = pd.Timestamp.utcnow().floor("1min")
+        self.time_now = pd.Timestamp.now(tz="UTC").floor("1min")
 
         self.pv_system.static_flows = self.pv_system.static_flows[self.time_now.floor("30min") :].fillna(0)
         self.pv_system.static_flows.index = [self.time_now] + list(self.pv_system.static_flows.index[1:])
@@ -3444,11 +3443,17 @@ class PVOpt(hass.Hass):
 
         tolerance = self.get_config("forced_power_group_tolerance")
 
-        # Increment "period" if charge power varies by more than half the power tolerance OR non-contiguous car slot detected (when charge power = 0).
+        # Increment "period" if 
+        #    charge power varies by more than half the power tolerance 
+        #    OR non-contiguous car slot detected (when charge power = 0).
+        #    OR cross from 0 to positive/negative value (otherwise windows of very low values will get joined together). 
+        
+        forced_diff = self.opt["forced"].diff()
 
         self.opt["period"] = (
-            (self.opt["forced"].diff().abs() > (tolerance / 2))
-            | ((self.opt["carslot"].diff() > 0) & (self.opt["forced"] == 0))
+            (forced_diff.abs() > (tolerance / 2))                          # significant power change
+            | ((forced_diff != 0) & ((self.opt["forced"] == 0) | (self.opt["forced"].shift() == 0)))  # any transition to/from zero
+            | ((self.opt["carslot"].diff() > 0) & (self.opt["forced"] == 0))  # new car slot with no charge
         ).cumsum()
 
         if self.debug and "O" in self.debug_cat:
@@ -3474,7 +3479,7 @@ class PVOpt(hass.Hass):
 
             # End time is 30 minutes after the start time, unless partway through a slot
             # x["end"] = x.index.tz_convert(self.tz) + pd.Timedelta(30, "minutes")
-            x["end"] = x.index.tz_convert(self.tz) + pd.to_timedelta((x["dt_hours"] * 60), unit="m").round("min")
+            x["end"] = x.index.tz_convert(self.tz) + pd.to_timedelta((x["dt_hours"] * 60), unit="m").dt.round("min")
             x["soc"] = x["soc"].round(0).astype(int)
             x["soc_end"] = x["soc_end"].round(0).astype(int)
 
@@ -3501,7 +3506,7 @@ class PVOpt(hass.Hass):
             x = self.opt[self.opt["forced"] < 0].copy()
             x["start"] = x.index.tz_convert(self.tz)
             # x["end"] = x.index.tz_convert(self.tz) + pd.Timedelta(30, "minutes")
-            x["end"] = x.index.tz_convert(self.tz) + pd.to_timedelta((x["dt_hours"] * 60), unit="m").round("min")
+            x["end"] = x.index.tz_convert(self.tz) + pd.to_timedelta((x["dt_hours"] * 60), unit="m").dt.round("min")
 
             if self.debug and "W" in self.debug_cat:
                 self.log("")
@@ -3833,11 +3838,16 @@ class PVOpt(hass.Hass):
         )
 
     def _write_output(self):
-        if self.get_config("id_consumption_today") > 0:
-            unit_cost_today = round(
-                self._cost_actual().sum() / self.get_config("id_consumption_today"),
-                1,
-            )
+
+        if self.entity_exists(self.config["id_consumption_today"]):
+
+            if self.get_config("id_consumption_today") > 0:
+                unit_cost_today = round(
+                    self._cost_actual().sum() / self.get_config("id_consumption_today"),
+                    1,
+                )
+            else:
+                unit_cost_today = 0
         else:
             unit_cost_today = 0
 
@@ -4241,9 +4251,16 @@ class PVOpt(hass.Hass):
                         0,
                     )
                 )
-                self.log(
-                    f"  - Got {actual_days} days history from {entity_id} from {df.index[0].strftime(DATE_TIME_FORMAT_SHORT)} to {df.index[-1].strftime(DATE_TIME_FORMAT_SHORT)}"
-                )
+
+                if len(entity_ids) > 0:
+                    self.log(
+                        f"  - Got {actual_days} days history from {entity_ids} from {df.index[0].strftime(DATE_TIME_FORMAT_SHORT)} to {df.index[-1].strftime(DATE_TIME_FORMAT_SHORT)}"
+                    )
+                else:
+                    self.log(
+                        f"  - Got {actual_days} days history from {entity_id} from {df.index[0].strftime(DATE_TIME_FORMAT_SHORT)} to {df.index[-1].strftime(DATE_TIME_FORMAT_SHORT)}"
+                    )
+
             else:
                 actual_days = 0
                 self.log(f"  - Got no consumption history")
@@ -4282,6 +4299,19 @@ class PVOpt(hass.Hass):
                     df = self._subtract_zappi_from_grid(ev_power, df)
 
                 # Add consumption margin
+
+                df_no_margin = df.copy() 
+
+                # Log historical daily consumption - skip partial first day
+                daily_totals = df_no_margin.groupby(df_no_margin.index.date).sum() / 2000
+                daily_counts = df_no_margin.groupby(df_no_margin.index.date).count()
+                self.log(f"  - Historical house consumption per day ({actual_days} days):")
+                for date, total in daily_totals.items():
+                    if daily_counts.loc[date] >= 48:  # only log complete days (48 x 30min slots)
+                        self.log(f"      {pd.Timestamp(date).strftime('%d-%b-%Y')} ({pd.Timestamp(date).strftime('%a')}): {total:0.1f} kWh")
+                    else:
+                        self.log(f"      {pd.Timestamp(date).strftime('%d-%b-%Y')} ({pd.Timestamp(date).strftime('%a')}): {total:0.1f} kWh  (partial day - {daily_counts.loc[date]} slots)")
+
                 df = df * (1 + self.get_config("consumption_margin") / 100)
                 if self.debug and "Q" in self.debug_cat:
                     self.log("Df after adding consumption margin is.......")
@@ -4323,20 +4353,33 @@ class PVOpt(hass.Hass):
 
                 if days >= 7:
 
-                    # Alternative way of finding data from a week ago, needs test
+                    dow_slices = []
+                    index_dow = None
+                    now_floor = pd.Timestamp.now(tz="UTC").floor("30min")
+                    for week in range(1, days // 7 + 1):
+                        start_dow_n = now_floor - pd.Timedelta(days=7 * week)
+                        slice_n = dfx.loc[start_dow_n : start_dow_n + pd.Timedelta(hours=95, minutes=30)].iloc[:96]
+                        
+                        if len(slice_n) > 80:
+                            dow_slices.append(slice_n.values)
+                            if index_dow is None:
+                                index_dow = slice_n.index  # capture the 7-days-ago index
 
-                    # start_last_week = pd.Timestamp.utcnow().floor("30min") - timedelta(days=7)
-                    # end_last_week = start_last_week + timedelta(days=2)
-                    # consumption_dow = self.get_config("day_of_week_weighting") * dfx.iloc[start_last_week, end_last_week]
+                    if dow_slices:
+                        averaged = sum(dow_slices) / len(dow_slices)
+                        consumption_dow = pd.DataFrame(averaged, index=index_dow)
+                    else:
+                        # fallback - should not happen if days >= 7
+                        consumption_dow = pd.DataFrame(dfx.iloc[:48])
 
-                    # this line is aligned to time now
-                    # dfx is index of time and date, 7 days long.
-                    # it does not extract the correct day if days >7, as it just selects the first 2 days.
-                    consumption_dow = pd.DataFrame(self.get_config("day_of_week_weighting") * dfx.iloc[: len(temp)])
+                    consumption_dow = consumption_dow * self.get_config("day_of_week_weighting")
                     consumption_dow.columns = ["consumption_dow"]
 
-                    # shift it forward by 7 days (only works if days = 7)
+                    # shift forward exactly 7 days to align with today
                     consumption_dow.index = consumption_dow.index + pd.Timedelta(days=7)
+
+                    # self.log(f">>> consumption_dow index after shift: {consumption_dow.index[0]} to {consumption_dow.index[-1]}")
+                    #  self.log(f">>> consumption_mean index: {consumption_mean.index[0]} to {consumption_mean.index[-1]}")
 
                     # Add extra entries to consumption_dow so it starts at midnight, then remove time column and change Nans to 0 (they are in the past)
                     consumption_dow2 = pd.concat([temp, consumption_dow], axis=1).drop(["time"], axis=1).fillna(0)
@@ -4357,6 +4400,33 @@ class PVOpt(hass.Hass):
                     if self.debug and "P" in self.debug_cat:
                         self.log(">>> Consumption New:")
                         self.log(f">>> {consumption_new.to_string()}")
+
+                    # Log forecast (pre-margin) daily totals - actuals so far + forecast for remainder
+                    consumption_margin_factor = 1 + self.get_config("consumption_margin") / 100
+                    forecast_pre_margin = consumption_new["total"] / consumption_margin_factor
+
+                    now_floor = pd.Timestamp.now(tz="UTC").floor("30min")
+                    today = now_floor.date()
+
+                    # Actual consumption so far today from raw history
+                    actual_today = df_no_margin[df_no_margin.index.date == today].sum() / 2000
+
+                    # Forecast for remaining slots today (from now onwards)
+                    forecast_today_remaining = forecast_pre_margin[forecast_pre_margin.index >= now_floor]
+                    forecast_today_remaining = forecast_today_remaining[forecast_today_remaining.index.date == today].sum() / 2000
+
+                    # Tomorrow is pure forecast
+                    tomorrow_start = pd.Timestamp(today, tz="UTC") + pd.Timedelta(days=1)
+                    tomorrow_end = tomorrow_start + pd.Timedelta(hours=23, minutes=30)
+                    forecast_tomorrow = forecast_pre_margin[
+                        (forecast_pre_margin.index >= tomorrow_start) & (forecast_pre_margin.index <= tomorrow_end)
+                    ].sum() / 2000
+                    
+                    tomorrow = (now_floor + pd.Timedelta(days=1)).date()
+
+                    self.log(f"  - Forecast consumption per day (weighted, pre-margin):")
+                    self.log(f"      {pd.Timestamp(today).strftime('%d-%b-%Y')} ({pd.Timestamp(today).strftime('%a')}): {actual_today + forecast_today_remaining:0.1f} kWh  ({actual_today:0.1f} kWh actual + {forecast_today_remaining:0.1f} kWh forecast)")
+                    self.log(f"      {pd.Timestamp(tomorrow).strftime('%d-%b-%Y')} ({pd.Timestamp(tomorrow).strftime('%a')}): {forecast_tomorrow:0.1f} kWh  (forecast)")
 
                     consumption["consumption"] += pd.Series(
                         consumption_new["total"].to_numpy(), index=consumption_mean.index
@@ -4397,17 +4467,6 @@ class PVOpt(hass.Hass):
             self.log("  - Consumption estimated OK")
 
         self.log("")
-
-        ### This next section prints a consumption based on two days worth, as predicted from the last 7 days
-        # What we want is a predicted consumption for the next day, so we can compare it to fixed consumption
-        # problems:
-        # Not sure where two days is created from  (as df is definitley one day)
-        # Each of the two days has different, so its not a straight double generated from the one day df
-
-        self.log(
-            f"    Total consumption from {consumption.index[0].strftime(DATE_TIME_FORMAT_SHORT)} to {consumption.index[-1].strftime(DATE_TIME_FORMAT_SHORT)}:"
-        )
-        self.log(f"    Total consumption: {(consumption['consumption'].sum() / 2000):0.1f} kWh")
 
         if self.debug and "P" in self.debug_cat:
             self.log("Printing final result of routine load_consumption.....")
@@ -4946,7 +5005,7 @@ class PVOpt(hass.Hass):
                 self.call_service("select/select_option", entity_id=entity_id, option=state)
                 self.rlog(f"Setting {entity_id} to {state}")
 
-    def get_state_retry(self, *args, **kwargs):
+    def get_state_retry(self, *args, allow_none=False, **kwargs):
         retries = 0
         state = None
 
@@ -4954,11 +5013,14 @@ class PVOpt(hass.Hass):
 
         while not valid_state and retries < GET_STATE_RETRIES:
             state = self.get_state(*args, **kwargs)
-            valid_state = (
-                (("attribute" in kwargs) and (isinstance(state, dict)))
-                or (state not in ["unknown", "unavailable", "", None, nan])
-                or (len(args) == 1)
-            )
+            if allow_none:
+                valid_state = True
+            else:
+                valid_state = (
+                    (("attribute" in kwargs) and (isinstance(state, dict)))
+                    or (state not in ["unknown", "unavailable", "", None, nan])
+                    or (len(args) == 1)
+                )
 
             if not valid_state:
                 retries += 1
@@ -5000,16 +5062,34 @@ if __name__ == "__main__":
     import asyncio
     import json
     import logging
+    import logging.handlers
     import os
     import sys
 
     import yaml
 
+    LOG_FORMAT = "%(asctime)s  %(levelname)-8s %(message)s"
+    LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+    # ── Console handler (captured by HA Supervisor → Add-On Log tab) ─────────
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s  %(levelname)-8s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+        format=LOG_FORMAT,
+        datefmt=LOG_DATE_FORMAT,
     )
+
+    # ── Persistent file handler (/data survives Add-On restarts) ─────────────
+    LOG_FILE = "/data/pv_opt.log"
+    os.makedirs("/data", exist_ok=True)
+    file_handler = logging.handlers.RotatingFileHandler(
+        LOG_FILE,
+        maxBytes=5 * 1024 * 1024,   # 5 MB per file
+        backupCount=3,               # keep pv_opt.log + 3 rotated copies
+        encoding="utf-8",
+    )
+    file_handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT, datefmt=LOG_DATE_FORMAT))
+    logging.getLogger().addHandler(file_handler)
+    logging.info(f"Logging to file: {LOG_FILE}")
 
     # ── Load Add-On UI options (MQTT credentials, log level, etc.) ────────────
     OPTIONS_FILE = "/data/options.json"
