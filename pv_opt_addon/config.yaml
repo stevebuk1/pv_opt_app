@@ -1,6 +1,6 @@
 ---
 name: PV Opt
-version: "5.0.0"
+version: "v1.0.0-Alpha-1"
 slug: pv_opt
 description: Solar/battery optimisation for Home Assistant. Optimises charge and discharge schedules to minimise energy costs using Octopus Energy tariffs and Solcast solar forecasts.
 url: https://github.com/stevebuk1/pv_opt_app
@@ -19,20 +19,16 @@ auth_api: false
 stdin: false
 legacy: false
 
-# Networking - MQTT broker support
-ports:
-  1883/tcp: null  # Only exposed if user connects to external MQTT
-
 # Startup ordering
 init: false
 startup: application
 
-# Persistent data directory
+# Persistent data directory + HA config (read-only for pv_opt config.yaml)
 map:
   - data
   - config:ro   # mounts HA config dir at /config (read-only)
 
-# Backup
+# Backup — exclude log files
 backup_exclude:
   - "*.log"
 
