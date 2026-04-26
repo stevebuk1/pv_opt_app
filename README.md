@@ -1,5 +1,5 @@
 # PV Opt App: Home Assistant Solar/Battery Optimiser 
-App (AddOn) v1.0.0, utilising Pv_opt v5.1.2-Beta-4. 
+App (AddOn) v1.0.0-Alpha-1, utilising Pv_opt v5.1.2-Beta-4. 
 
 <h2>Introduction</h2>
 
@@ -13,7 +13,8 @@ Pv_opt itself is unchanged from the AppDaemon version and so will behave identic
 
 If you are currently running PV_opt under AppDaemon, follow this section, otherwise go to Installation Instuctions below . 
 
-* Stop Appdaemon (or remove Pv_opt from AppDaemon if you have other AppDeamon apps still running)
+* Stop Appdaemon (or remove Pv_opt from AppDaemon if you have other AppDeamon apps still running).
+* Make sure the toggles "Start on Boot" and "Watchdog" are set to off. 
 * Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.
 * Go to settings, apps, install app
 * Click the 3 vertical dots at top right and select "Repositories". 
@@ -24,7 +25,8 @@ If you are currently running PV_opt under AppDaemon, follow this section, otherw
 
 Please note 
 * The installer will copy across your config.yaml from the AppDaemon area, this will now live at /config/pv_opt/config.yaml
-* pv_opt.log will be in addon_configs/pv_opt/pv_opt.log
+* pv_opt.log is now produced to /addon_configs/pv_opt/pv_opt.log
+* error.log is now written to /addon_configs/pv_opt/error.log
 
 Remember: Do not run the Pv_opt App at the same time as Pv_opt within AppDaemon. 
 
