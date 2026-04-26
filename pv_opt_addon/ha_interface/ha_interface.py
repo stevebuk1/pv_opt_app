@@ -38,7 +38,7 @@ import json
 import logging
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional
 
 import paho.mqtt.client as _paho_mqtt
@@ -204,11 +204,40 @@ class Hass:
     # ------------------------------------------------------------------
 
     def get_state(self, entity_id: str, attribute: Optional[str] = None, **kwargs) -> Any:
+        """
+        Get state of an entity or all entities in a domain.
+
+        AppDaemon supports two call patterns:
+          1. get_state("sensor.my_sensor")         → returns state string
+          2. get_state("sensor")                   → returns dict of all
+                                                     entities in that domain
+        The second pattern is detected by the absence of '.' in entity_id.
+        """
+        # Domain-level call — return all entities in domain as a dict
+        # matching AppDaemon's return format: {entity_id: state_dict, ...}
+        if "." not in str(entity_id):
+            url = f"{HA_URL}/api/states"
+            try:
+                r = requests.get(url, headers=_ha_headers(), timeout=10)
+                r.raise_for_status()
+                all_states = r.json()
+                return {
+                    s["entity_id"]: s
+                    for s in all_states
+                    if s["entity_id"].startswith(f"{entity_id}.")
+                }
+            except Exception as e:
+                logger.error(f"get_state({entity_id}): {e}")
+                return None
+
+        # Single entity call
         url = f"{HA_URL}/api/states/{entity_id}"
         try:
             r = requests.get(url, headers=_ha_headers(), timeout=10)
             r.raise_for_status()
             data = r.json()
+            if attribute == "all":
+                return data
             if attribute:
                 return data.get("attributes", {}).get(attribute)
             return data.get("state")
@@ -247,6 +276,8 @@ class Hass:
             logger.error(f"set_state({entity_id}): {e}")
 
     def entity_exists(self, entity_id: str, **kwargs) -> bool:
+        if not entity_id or "." not in str(entity_id):
+            return False
         url = f"{HA_URL}/api/states/{entity_id}"
         try:
             r = requests.get(url, headers=_ha_headers(), timeout=10)
@@ -265,6 +296,34 @@ class Hass:
                 return outer.get_state(self_._eid, attribute=attribute)
 
         return _EntityProxy(entity_id)
+
+    # ------------------------------------------------------------------
+    # History – REST API
+    # ------------------------------------------------------------------
+
+    def get_history(self, entity_id: str, days: int = 1, **kwargs) -> Optional[list]:
+        """
+        Replaces AppDaemon's get_history().
+        Returns a list containing one list of state dicts, matching
+        AppDaemon's format: [[{last_updated, state, ...}, ...]]
+        """
+        end = datetime.now(tz=timezone.utc)
+        start = end - timedelta(days=days)
+        start_str = start.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        url = (
+            f"{HA_URL}/api/history/period/{start_str}"
+            f"?filter_entity_id={entity_id}&minimal_response=true&no_attributes=false"
+        )
+        try:
+            r = requests.get(url, headers=_ha_headers(), timeout=30)
+            r.raise_for_status()
+            data = r.json()
+            if data and len(data) > 0:
+                return data   # already [[{last_updated, state}, ...]]
+            return [[]]
+        except Exception as e:
+            logger.error(f"get_history({entity_id}): {e}")
+            return None
 
     # ------------------------------------------------------------------
     # Services – REST API
@@ -292,11 +351,6 @@ class Hass:
         old: Optional[str] = None,
         **kwargs,
     ) -> str:
-        """
-        Register a state-change listener.  Returns an opaque handle.
-        Fires callback(entity_id, attribute, old_state, new_state, kwargs)
-        matching AppDaemon's positional signature.
-        """
         handle = self._next_handle("ls")
         self._state_listeners[handle] = (
             entity_id,
@@ -308,6 +362,13 @@ class Hass:
 
     def cancel_listen_state(self, handle: str, **kwargs):
         self._state_listeners.pop(handle, None)
+
+    def info_listen_state(self, handle: str, **kwargs) -> Optional[str]:
+        """Returns the entity_id registered for a given handle."""
+        entry = self._state_listeners.get(handle)
+        if entry:
+            return entry[0]
+        return None
 
     # ------------------------------------------------------------------
     # Event listeners
@@ -327,11 +388,6 @@ class Hass:
     # ------------------------------------------------------------------
 
     async def _start_ws_listener(self):
-        """
-        Opens a persistent WebSocket to the HA event bus.
-        Subscribes to 'state_changed' and any custom events registered
-        via listen_event().  Reconnects automatically on disconnect.
-        """
         RECONNECT_DELAY = 5
 
         while True:
@@ -360,16 +416,13 @@ class Hass:
                         raise RuntimeError(f"state_changed subscribe failed: {msg}")
                     logger.info("WebSocket: subscribed to state_changed")
 
-                    # Wait for initialize() to complete so that all
-                    # listen_event() calls have been registered before
-                    # we subscribe to them on the WebSocket.
-                    # On reconnects _init_done is already set, so this
-                    # returns immediately.
+                    # Wait for initialize() to complete so all listen_event()
+                    # calls are registered before we subscribe to them.
                     logger.info("WebSocket: waiting for initialize() to complete...")
                     await self._init_done.wait()
                     logger.info("WebSocket: initialize() done — subscribing to custom events")
 
-                    # Subscribe to any custom event types (e.g. PV_OPT trigger)
+                    # Subscribe to custom event types (e.g. PV_OPT trigger)
                     sub_id = 2
                     subscribed: set[str] = set()
                     for event_name in list(self._event_listeners.keys()):
@@ -379,7 +432,7 @@ class Hass:
                                 "type": "subscribe_events",
                                 "event_type": event_name,
                             }))
-                            await ws.recv()  # consume result message
+                            await ws.recv()
                             subscribed.add(event_name)
                             logger.info(f"WebSocket: subscribed to event '{event_name}'")
                             sub_id += 1
@@ -408,10 +461,6 @@ class Hass:
                 await asyncio.sleep(RECONNECT_DELAY)
 
     async def _dispatch_state_change(self, data: dict):
-        """
-        Fire registered state listeners whose entity_id and filters match.
-        AppDaemon callback signature: (entity_id, attribute, old, new, kwargs)
-        """
         entity_id = data.get("entity_id", "")
         new_obj = data.get("new_state") or {}
         old_obj = data.get("old_state") or {}
@@ -444,10 +493,6 @@ class Hass:
                 logger.error(f"listen_state callback error for {entity_id}: {e}")
 
     async def _dispatch_event(self, event_name: str, data: dict):
-        """
-        Fire registered event listeners.
-        AppDaemon callback signature: (event_name, data, kwargs)
-        """
         for callback, kwargs in list(self._event_listeners.get(event_name, [])):
             try:
                 loop = asyncio.get_event_loop()
@@ -462,11 +507,7 @@ class Hass:
         """
         Acquire _optimise_lock then call fn().
         All executor callbacks go through here so that only one
-        pv_opt callback (optimise, state change, event trigger, etc.)
-        runs at a time — replicating what AppDaemon's @app_lock did.
-        A second trigger arriving while optimise() is running will block
-        here and run immediately after the first completes, rather than
-        being dropped or running concurrently.
+        pv_opt callback runs at a time — replicating @app_lock.
         """
         with self._optimise_lock:
             fn()
@@ -569,12 +610,8 @@ class Hass:
         try:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self._initialize_sync)
-            # Signal the WS listener that all listen_event() calls are registered.
             self._init_done.set()
             logger.info("initialize() complete — WS custom event subscriptions unblocked")
-            # initialize() returns after setup; the app is now event-driven.
-            # Keep running until the WS task exits (which it never does
-            # unless there's a fatal error).
             await ws_task
         except Exception as e:
             logger.error(f"Fatal error in _run(): {e}")
