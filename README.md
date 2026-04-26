@@ -19,8 +19,9 @@ If you are currently running PV_opt under AppDaemon, follow this section, otherw
 * Go to settings, apps, install app
 * Click the 3 vertical dots at top right and select "Repositories". 
 * Add '[https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository
-* When prompted, add the MQTT username and password that was originally created when installing Mosquito
-* Click restart on the app if need be (it might start automatically anyway)
+* Go back one page, scroll to the bottom to the Pv_opt Addon, and press Install
+* When installed, go to the Configuration tab and add the MQTT username and password you used when originally intalling Mosquito. 
+* Click Start on the App. 
 
 
 Please note 
