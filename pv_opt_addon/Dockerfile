@@ -19,21 +19,21 @@ RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 # ── Application code ──────────────────────────────────────────────────────────
 WORKDIR /app
-COPY apps/pv_opt/pv_opt.py      .
-COPY apps/pv_opt/pvpy.py        .
-COPY apps/pv_opt/solis.py       .
-COPY apps/pv_opt/solax.py       .
-COPY apps/pv_opt/sunsynk.py     .
+COPY pv_opt/pv_opt.py      .
+COPY pv_opt/pvpy.py        .
+COPY pv_opt/solis.py       .
+COPY pv_opt/solax.py       .
+COPY pv_opt/sunsynk.py     .
 
 # Default config for first-time installs — copied to /config/pv_opt/ by run.sh
 # if no config.yaml already exists there
-COPY apps/pv_opt/config.yaml    /app/config.yaml.default
+COPY pv_opt/config/config.yaml    /app/config.yaml.default
 
 # Shim replaces AppDaemon's hass.Hass base class
-COPY pv_opt_addon/ha_interface/ ./ha_interface/
+COPY ha_interface/ ./ha_interface/
 
 # ── Entry point ───────────────────────────────────────────────────────────────
-COPY pv_opt_addon/run.sh /usr/bin/run.sh
+COPY run.sh /usr/bin/run.sh
 RUN chmod +x /usr/bin/run.sh
 
 CMD ["/usr/bin/run.sh"]
