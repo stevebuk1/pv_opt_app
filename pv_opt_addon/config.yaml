@@ -55,15 +55,7 @@ schema:
   # =========================================================
   # Logging
   # =========================================================
-  log_level:
-    enum:
-      - trace
-      - debug
-      - info
-      - notice
-      - warning
-      - error
-      - fatal
+  log_level: list(trace|debug|info|notice|warning|error|fatal)?
 
 options:
   config_path: /config/pv_opt/config.yaml
