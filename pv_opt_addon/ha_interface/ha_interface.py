@@ -621,12 +621,8 @@ class Hass:
     def _initialize_sync(self):
         """
         Synchronous wrapper around initialize() for run_in_executor.
-        Runs initialize() (which is async) in a fresh event loop on the
-        worker thread, keeping the main loop free during any time.sleep() calls.
+        initialize() is decorated with @ad.app_lock which in the Add-On is a
+        no-op wrapper that makes it a regular synchronous function, so we call
+        it directly rather than via run_until_complete().
         """
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(self.initialize())
-        finally:
-            loop.close()
+        self.initialize()
