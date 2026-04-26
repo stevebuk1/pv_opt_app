@@ -26,35 +26,38 @@ export MQTT_PASS="$(bashio::config 'mqtt_pass')"
 LOG_LEVEL=$(bashio::config 'log_level' 'info')
 bashio::log.level "${LOG_LEVEL}"
 
-# ── pv_opt config path ───────────────────────────────────────────────────────
-# /config is the HA config directory (mounted read-only via config:ro in config.yaml)
-# Add-On config location:   /config/pv_opt/config.yaml
-# AppDaemon config location: /config/appdaemon/apps/pv_opt/config/config.yaml
-ADDON_CONFIG="/config/pv_opt/config.yaml"
-APPDAEMON_CONFIG="/config/appdaemon/apps/pv_opt/config/config.yaml"
-export PV_OPT_CONFIG="$(bashio::config 'config_path' "${ADDON_CONFIG}")"
-bashio::log.info "pv_opt config path: ${PV_OPT_CONFIG}"
+# ── pv_opt config ─────────────────────────────────────────────────────────────
+# /config is mounted read-write — users can find and edit files here via the
+# HA File Editor, consistent with how AppDaemon stores its files.
+#
+# On first start, if /config/pv_opt/config.yaml doesn't exist:
+#   1. Copy from AppDaemon location if found (migration path)
+#   2. Otherwise copy the built-in default (fresh install)
+# Subsequent starts use /config/pv_opt/config.yaml directly.
 
-if [ ! -f "${PV_OPT_CONFIG}" ]; then
-    mkdir -p "$(dirname "${PV_OPT_CONFIG}")"
+PV_OPT_DIR="/config/pv_opt"
+DATA_CONFIG="${PV_OPT_DIR}/config.yaml"
+APPDAEMON_CONFIG="/config/appdaemon/apps/pv_opt/config/config.yaml"
+export PV_OPT_CONFIG="${DATA_CONFIG}"
+
+mkdir -p "${PV_OPT_DIR}"
+
+if [ ! -f "${DATA_CONFIG}" ]; then
     if [ -f "${APPDAEMON_CONFIG}" ]; then
-        # Migrating from AppDaemon — copy existing config across
-        bashio::log.info "Found AppDaemon config at ${APPDAEMON_CONFIG}"
-        bashio::log.info "Copying to Add-On location: ${PV_OPT_CONFIG}"
-        cp "${APPDAEMON_CONFIG}" "${PV_OPT_CONFIG}"
-        bashio::log.info "Migration complete — config.yaml copied to ${PV_OPT_CONFIG}"
+        bashio::log.info "Migrating from AppDaemon — copying config to ${DATA_CONFIG}"
+        cp "${APPDAEMON_CONFIG}" "${DATA_CONFIG}"
+        bashio::log.info "Config copied from ${APPDAEMON_CONFIG}"
+        bashio::log.info "AppDaemon config is unchanged. Edit ${DATA_CONFIG} to configure the Add-On."
     else
-        # Fresh install — copy built-in default
-        bashio::log.warning "No config.yaml found — installing default"
-        cp /app/config.yaml.default "${PV_OPT_CONFIG}"
-        bashio::log.info "Default config.yaml written to ${PV_OPT_CONFIG}"
-        bashio::log.warning "Please edit ${PV_OPT_CONFIG} to match your system, then restart the Add-On"
+        bashio::log.warning "No config.yaml found — installing default to ${DATA_CONFIG}"
+        cp /app/config.yaml.default "${DATA_CONFIG}"
+        bashio::log.warning "Please edit ${DATA_CONFIG} to match your system, then restart the Add-On"
+        bashio::log.warning "You can access this file via the HA File Editor add-on"
     fi
+else
+    bashio::log.info "Using existing config at ${DATA_CONFIG}"
 fi
 
 # ── Launch ────────────────────────────────────────────────────────────────────
-# Options are passed via /data/options.json which ha_interface.py reads directly.
-# stdout/stderr captured by the Supervisor log infrastructure.
 bashio::log.info "Launching PV Opt..."
-
 exec python3 /app/pv_opt.py
