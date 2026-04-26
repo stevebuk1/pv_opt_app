@@ -1,0 +1,76 @@
+---
+name: PV Opt
+version: "5.0.0"
+slug: pv_opt
+description: Solar/battery optimisation for Home Assistant. Optimises charge and discharge schedules to minimise energy costs using Octopus Energy tariffs and Solcast solar forecasts.
+url: https://github.com/stevebuk1/pv_opt_app
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+
+# Home Assistant supervised access
+homeassistant_api: true
+auth_api: false
+
+# Add-on I/O
+stdin: false
+legacy: false
+
+# Networking - MQTT broker support
+ports:
+  1883/tcp: null  # Only exposed if user connects to external MQTT
+
+# Startup ordering
+init: false
+startup: application
+
+# Persistent data directory
+map:
+  - data
+  - config:ro   # mounts HA config dir at /config (read-only)
+
+# Backup
+backup_exclude:
+  - "*.log"
+
+schema:
+  # =========================================================
+  # Add-On configuration
+  # These are the only settings managed via the HA UI.
+  # All pv_opt settings are read from config.yaml (see below).
+  # =========================================================
+
+  # Path to pv_opt config.yaml inside the container.
+  # The /config directory maps to your HA config directory,
+  # so place your config.yaml at:
+  #   <ha_config>/pv_opt/config.yaml
+  config_path: str?
+
+  # =========================================================
+  # MQTT credentials
+  # (create a dedicated user in HA Settings > People > Users)
+  # =========================================================
+  mqtt_user: str
+  mqtt_pass: password
+
+  # =========================================================
+  # Logging
+  # =========================================================
+  log_level:
+    enum:
+      - trace
+      - debug
+      - info
+      - notice
+      - warning
+      - error
+      - fatal
+
+options:
+  config_path: /config/pv_opt/config.yaml
+  mqtt_user: ""
+  mqtt_pass: ""
+  log_level: info

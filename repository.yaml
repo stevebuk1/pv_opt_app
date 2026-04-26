@@ -1,0 +1,8 @@
+---
+# Home Assistant Add-On Repository descriptor
+# Place this file at the ROOT of the GitHub repository
+# Users add https://github.com/stevebuk1/pv_opt as a custom repository in HA
+
+name: PV Opt Add-Ons
+url: https://github.com/stevebuk1/pv_opt_app
+maintainer: stevebuk1
