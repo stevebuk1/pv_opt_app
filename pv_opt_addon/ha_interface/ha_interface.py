@@ -172,6 +172,7 @@ class Hass:
         # state-change or event trigger cannot start a second optimise()
         # while one is already running (replaces AppDaemon's @app_lock).
         self._optimise_lock = threading.Lock()
+        self._main_loop: asyncio.AbstractEventLoop | None = None  # set in _run()
 
     def _next_handle(self, prefix: str) -> str:
         self._handle_counter += 1
@@ -527,7 +528,7 @@ class Hass:
             except Exception as e:
                 logger.error(f"run_in callback error: {e}")
 
-        asyncio.ensure_future(_delayed())
+        asyncio.run_coroutine_threadsafe(_delayed(), self._main_loop)
         return self._next_handle("ri")
 
     def run_every(self, callback: Callable, start, interval: float, **kwargs) -> str:
@@ -547,7 +548,7 @@ class Hass:
                     logger.error(f"run_every callback error: {e}")
                 await asyncio.sleep(interval)
 
-        task = asyncio.ensure_future(_repeating())
+        task = asyncio.run_coroutine_threadsafe(_repeating(), self._main_loop)
         self._scheduler_tasks.append(task)
         return self._next_handle("re")
 
@@ -609,6 +610,7 @@ class Hass:
         ws_task = asyncio.ensure_future(self._start_ws_listener())
         try:
             loop = asyncio.get_event_loop()
+            self._main_loop = loop   # store for use by run_every/run_in in worker thread
             await loop.run_in_executor(None, self._initialize_sync)
             self._init_done.set()
             logger.info("initialize() complete — WS custom event subscriptions unblocked")
