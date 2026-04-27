@@ -1,5 +1,5 @@
 # PV Opt App: Home Assistant Solar/Battery Optimiser 
-App (AddOn) v1.0.0-Alpha-8, utilising Pv_opt v5.1.2-Beta-4. 
+App (AddOn) v1.0.0-Alpha-11, utilising Pv_opt v5.1.2-Beta-4. 
 
 <h2>Introduction</h2>
 
