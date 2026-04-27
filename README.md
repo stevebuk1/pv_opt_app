@@ -24,12 +24,13 @@ If you are currently running PV_opt under AppDaemon, follow this section, otherw
 * Click Start on the App. 
 
 
-Please note 
+Notes:
 * The installer will copy across your config.yaml from the AppDaemon area, this will now live at /config/pv_opt/config.yaml. No changes are required. 
 * pv_opt.log is now written to /config/pv_opt/pv_opt.log
 * error.log is now written to /config/pv_opt/error.log
+* There is also a live log in the Log Tab of the App which includes the contents of both logs as well as any logging that went to main.log/AppDaemon.log.
 
-Remember: Do not run the Pv_opt App at the same time as Pv_opt within AppDaemon. 
+And remember: Do not run the Pv_opt App at the same time as Pv_opt within AppDaemon. 
 
 <h2>Installation Instructions</h2>
 
