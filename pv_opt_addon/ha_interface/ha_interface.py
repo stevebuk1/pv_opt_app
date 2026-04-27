@@ -450,6 +450,13 @@ class Hass:
                     await self._init_done.wait()
                     logger.info("WebSocket: initialize() done — subscribing to custom events")
 
+                    # Brief yield to ensure _event_listeners is fully populated
+                    # by the worker thread before we iterate over it
+                    await asyncio.sleep(0.5)
+
+                    # Log what events are registered for debugging
+                    logger.info(f"WebSocket: registered event listeners: {list(self._event_listeners.keys())}")
+
                     # Subscribe to custom event types (e.g. PV_OPT trigger)
                     sub_id = 2
                     subscribed: set[str] = set()
@@ -655,4 +662,3 @@ class Hass:
         it directly rather than via run_until_complete().
         """
         self.initialize()
-
