@@ -58,7 +58,8 @@ else
     bashio::log.info "Using existing config at ${DATA_CONFIG}"
 fi
 
-export ADDON_VERSION="${BUILD_VERSION:-unknown}"
+# ── Export Add-On version for pv_opt.py to read at runtime ──────────────────
+export ADDON_VERSION="$(bashio::addon.version)"
 
 # ── Launch ────────────────────────────────────────────────────────────────────
 bashio::log.info "Launching PV Opt..."
