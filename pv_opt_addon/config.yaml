@@ -1,6 +1,6 @@
 ---
 name: PV Opt
-version: "1.0.0-Alpha-13"
+version: "1.0.0-Alpha-14"
 slug: pv_opt
 description: Solar/battery optimisation for Home Assistant. Optimises charge and discharge schedules to minimise energy costs using Octopus Energy tariffs and Solcast solar forecasts.
 url: https://github.com/stevebuk1/pv_opt_app
