@@ -1,5 +1,5 @@
 # PV Opt App: Home Assistant Solar/Battery Optimiser 
-App (AddOn) v1.0.0-Alpha-1, utilising Pv_opt v5.1.2-Beta-4. 
+App (AddOn) v1.0.0-Alpha-8, utilising Pv_opt v5.1.2-Beta-4. 
 
 <h2>Introduction</h2>
 
@@ -13,21 +13,20 @@ Pv_opt itself is unchanged from the AppDaemon version and so will behave identic
 
 If you are currently running PV_opt under AppDaemon, follow this section, otherwise go to Installation Instuctions below . 
 
-* Stop Appdaemon (or remove Pv_opt from AppDaemon if you have other AppDeamon apps still running).
-* Make sure the toggles "Start on Boot" and "Watchdog" are set to off. 
-* Open your Home Assistant instance and show the add app repository dialog with a specific repository URL pre-filled.
+* Stop Appdaemon, and make sure the toggles "Start on Boot" and "Watchdog" are set to off (or remove Pv_opt from AppDaemon if you have other AppDeamon apps still running).
+* Open your Home Assistant instance and show the Add app repository dialog with a specific repository URL pre-filled.
 * Go to settings, apps, install app
 * Click the 3 vertical dots at top right and select "Repositories". 
 * Add '[https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository
 * Go back one page, scroll to the bottom to the Pv_opt Addon, and press Install
-* When installed, go to the Configuration tab and add the MQTT username and password you used when originally intalling Mosquito. 
+* When installed, go to the Configuration tab and add the MQTT username and password you used when originally intalling Mosquito.
 * Click Start on the App. 
 
 
 Please note 
-* The installer will copy across your config.yaml from the AppDaemon area, this will now live at /config/pv_opt/config.yaml
-* pv_opt.log is now produced to /addon_configs/pv_opt/pv_opt.log
-* error.log is now written to /addon_configs/pv_opt/error.log
+* The installer will copy across your config.yaml from the AppDaemon area, this will now live at /config/pv_opt/config.yaml. No changes are required. 
+* pv_opt.log is now written to /config/pv_opt/pv_opt.log
+* error.log is now written to /config/pv_opt/error.log
 
 Remember: Do not run the Pv_opt App at the same time as Pv_opt within AppDaemon. 
 
@@ -124,7 +123,7 @@ Navigate to Settings -> Addons -> File editor -> Configuration and set "Enforce 
 
 <h3>8. Install Samba Share and/or Studio Code Server Add-ons If Required</h3>
 
-Both of these add-ons make it easier to edit text files on your HA Install but aren't strictly necessary. `Samba Share` also makes it easier to access the AppDaemon log files.
+Both of these add-ons make it easier to edit text files on your HA Install but aren't strictly necessary. `Samba Share` also makes it easier to access the log files.
 
 <h3>9. Install the PV_opt App (formerly known as an AddOn)</h3>
 
@@ -132,9 +131,13 @@ Both of these add-ons make it easier to edit text files on your HA Install but a
 * Go to settings, apps, install app
 * Click the 3 vertical dots at top right and select "Repositories". 
 * Add '[https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository
-* When prompted, add the MQTT username and password from Step4 above. 
-* Click restart on the app if need be (it might start automatically anyway)
+* Go back one page, scroll to the bottom to the Pv_opt Addon, and press Install. This will take a couple of minutes. 
+* When installed, go to the Configuration tab and add the MQTT username and password from Step 4 above. 
+* Click Start on the App.
+* Select the Log tab. The following should be produced:
+
+XXXXX Insert example text here XXXXX
 
 Please note 
-* config.yaml will be om /config/pv_opt/config.yaml
-* pv_opt.log will be in /addon_configs/pv_opt/pv_opt.log
+* pv_opt.log is written to /config/pv_opt/pv_opt.log
+* error.log is written to /config/pv_opt/error.log
