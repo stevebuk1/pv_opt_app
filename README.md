@@ -1,5 +1,5 @@
 # PV Opt App: Home Assistant Solar/Battery Optimiser 
-App (AddOn) v1.0.0-Alpha-8, utilising Pv_opt v5.1.2-Beta-4. 
+App (AddOn) v1.0.0-Alpha-11, utilising Pv_opt v5.1.2-Beta-4. 
 
 <h2>Introduction</h2>
 
@@ -17,9 +17,10 @@ If you are currently running PV_opt under AppDaemon, follow this section, otherw
 * Open your Home Assistant instance and show the Add app repository dialog with a specific repository URL pre-filled.
 * Go to settings, apps, install app
 * Click the 3 vertical dots at top right and select "Repositories". 
-* Add '[https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository
+* Press the "Add" button, and add '[https://github.com/stevebuk1/pv_opt_app)](https://github.com/stevebuk1/pv_opt_app)' as a new repository
 * Go back one page, scroll to the bottom to the Pv_opt Addon, and press Install
-* When installed, go to the Configuration tab and add the MQTT username and password you used when originally intalling Mosquito.
+* Installation will take a few minutes as the App is built (you can follow progress in the HA Supervisor Log)
+* When installed, go to the Configuration tab and add the MQTT username and password you used when originally intalling Mosquito. 
 * Click Start on the App. 
 
 
