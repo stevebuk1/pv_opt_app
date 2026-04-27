@@ -246,6 +246,26 @@ class Hass:
             logger.error(f"get_state({entity_id}): {e}")
             return None
 
+    @staticmethod
+    def _json_serialiser(obj: Any) -> str:
+        """
+        Fallback JSON serialiser for types that are not natively serialisable.
+        Handles pandas Timestamp, numpy types, datetime, and timedelta.
+        """
+        import pandas as pd
+        import numpy as np
+        if isinstance(obj, (pd.Timestamp, datetime)):
+            return obj.isoformat()
+        if isinstance(obj, pd.Timedelta):
+            return str(obj)
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serialisable")
+
     def set_state(
         self,
         entity_id: str,
@@ -271,7 +291,14 @@ class Hass:
                     pass
                 payload["attributes"] = {**existing_attrs, **attributes}
         try:
-            r = requests.post(url, headers=_ha_headers(), json=payload, timeout=10)
+            # Use custom serialiser to handle Timestamps and numpy types
+            payload_str = json.dumps(payload, default=self._json_serialiser)
+            r = requests.post(
+                url,
+                headers=_ha_headers(),
+                data=payload_str,
+                timeout=10,
+            )
             r.raise_for_status()
         except Exception as e:
             logger.error(f"set_state({entity_id}): {e}")
@@ -628,3 +655,4 @@ class Hass:
         it directly rather than via run_until_complete().
         """
         self.initialize()
+
