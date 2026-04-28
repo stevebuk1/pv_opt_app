@@ -567,12 +567,18 @@ class Hass:
 
     def run_every(self, callback: Callable, start, interval: float, **kwargs) -> str:
         async def _repeating():
+            # Calculate the first fire time
             if isinstance(start, datetime):
-                now = datetime.now(tz=start.tzinfo)
-                delay = max(0.0, (start - now).total_seconds())
-                if delay > 0:
-                    await asyncio.sleep(delay)
+                next_run = start.astimezone(timezone.utc)
+            else:
+                next_run = datetime.now(tz=timezone.utc)
+
             while True:
+                # Sleep until the next absolute wall-clock fire time
+                now = datetime.now(tz=timezone.utc)
+                delay = max(0.0, (next_run - now).total_seconds())
+                await asyncio.sleep(delay)
+
                 try:
                     loop = asyncio.get_event_loop()
                     await loop.run_in_executor(
@@ -580,7 +586,16 @@ class Hass:
                     )
                 except Exception as e:
                     logger.error(f"run_every callback error: {e}")
-                await asyncio.sleep(interval)
+
+                # Advance to the next absolute boundary — never drifts regardless
+                # of how long the callback took
+                next_run = next_run + timedelta(seconds=interval)
+                # If we've fallen more than one interval behind (e.g. after a
+                # long blocking call), skip missed fires and re-anchor to now
+                now = datetime.now(tz=timezone.utc)
+                while next_run < now:
+                    logger.warning(f"run_every: skipping missed fire, re-anchoring schedule")
+                    next_run = next_run + timedelta(seconds=interval)
 
         task = asyncio.run_coroutine_threadsafe(_repeating(), self._main_loop)
         self._scheduler_tasks.append(task)
