@@ -138,8 +138,24 @@ Both of these add-ons make it easier to edit text files on your HA Install but a
 * Click Start on the App.
 * Select the Log tab. The following should be produced:
 
-XXXXX Insert example text here XXXXX
+```
+[22:20:33] INFO: Starting PV Opt dev
+[22:20:33] INFO: Using existing config at /config/pv_opt/config.yaml
+[22:20:33] INFO: Launching PV Opt...
+2026-04-28 22:20:35  INFO     *************** PV Opt Add-On Version: 1.0.0-Beta-2 ***************
+2026-04-28 22:20:35  INFO     Logging to /config/pv_opt/pv_opt.log and /config/pv_opt/error.log
+2026-04-28 22:20:35  INFO     Loaded pv_opt config from /config/pv_opt/config.yaml
+2026-04-28 22:20:35  INFO     
+2026-04-28 22:20:35  INFO     WebSocket: connecting to ws://supervisor/core/api/websocket
+2026-04-28 22:20:35  INFO     *************** PV Opt Version: v5.1.2-Beta-6 ***************
+2026-04-28 22:20:35  INFO     
+2026-04-28 22:20:35  INFO     Pre-release version. Enabling debug logging
+2026-04-28 22:20:35  INFO     Debug Categories selected = O
+2026-04-28 22:20:35  INFO     Debug Categories selected = O
+2026-04-28 22:20:35  INFO     MQTT connected to core-mosquitto:1883
+2026-04-28 22:20:35  INFO     Local timezone set to GB
+2026-04-28 22:20:35  INFO     Time Zone Offset: 60 minutes
+2026-04-28 22:20:35  INFO     Inverter type: SOLIS_SOLAX_MODBUS: inverter module: solis.py
 
-Please note 
-* pv_opt.log is written to /config/pv_opt/pv_opt.log
-* error.log is written to /config/pv_opt/error.log
+```
+
