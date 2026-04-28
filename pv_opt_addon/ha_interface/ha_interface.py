@@ -338,16 +338,22 @@ class Hass:
         end = datetime.now(tz=timezone.utc)
         start = end - timedelta(days=days)
         start_str = start.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        end_str = end.strftime("%Y-%m-%dT%H:%M:%S.000Z")
         url = (
             f"{HA_URL}/api/history/period/{start_str}"
-            f"?filter_entity_id={entity_id}&no_attributes=false"
+            f"?filter_entity_id={entity_id}"
+            f"&end_time={end_str}"
+            f"&significant_changes_only=false"
+            f"&no_attributes=true"
         )
         try:
             r = requests.get(url, headers=_ha_headers(), timeout=30)
             r.raise_for_status()
             data = r.json()
-            if data and len(data) > 0:
-                return data   # already [[{last_updated, state}, ...]]
+            logger.debug(f"get_history({entity_id}): got {len(data)} series, first series has {len(data[0]) if data else 0} entries")
+            if data and len(data) > 0 and len(data[0]) > 0:
+                return data
+            logger.warning(f"get_history({entity_id}): API returned empty data")
             return [[]]
         except Exception as e:
             logger.error(f"get_history({entity_id}): {e}")
