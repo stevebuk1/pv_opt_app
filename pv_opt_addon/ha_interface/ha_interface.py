@@ -173,6 +173,7 @@ class Hass:
         # while one is already running (replaces AppDaemon's @app_lock).
         self._optimise_lock = threading.Lock()
         self._main_loop: asyncio.AbstractEventLoop | None = None  # set in _run()
+        self._session = requests.Session()  # persistent HTTP session for HA REST API
 
     def _next_handle(self, prefix: str) -> str:
         self._handle_counter += 1
@@ -219,7 +220,7 @@ class Hass:
         if "." not in str(entity_id):
             url = f"{HA_URL}/api/states"
             try:
-                r = requests.get(url, headers=_ha_headers(), timeout=10)
+                r = self._session.get(url, headers=_ha_headers(), timeout=10)
                 r.raise_for_status()
                 all_states = r.json()
                 return {
@@ -234,7 +235,7 @@ class Hass:
         # Single entity call
         url = f"{HA_URL}/api/states/{entity_id}"
         try:
-            r = requests.get(url, headers=_ha_headers(), timeout=10)
+            r = self._session.get(url, headers=_ha_headers(), timeout=10)
             r.raise_for_status()
             data = r.json()
             if attribute == "all":
@@ -284,7 +285,7 @@ class Hass:
             else:
                 existing_attrs: dict = {}
                 try:
-                    r = requests.get(url, headers=_ha_headers(), timeout=10)
+                    r = self._session.get(url, headers=_ha_headers(), timeout=10)
                     if r.ok:
                         existing_attrs = r.json().get("attributes", {})
                 except Exception:
@@ -293,7 +294,7 @@ class Hass:
         try:
             # Use custom serialiser to handle Timestamps and numpy types
             payload_str = json.dumps(payload, default=self._json_serialiser)
-            r = requests.post(
+            r = self._session.post(
                 url,
                 headers=_ha_headers(),
                 data=payload_str,
@@ -308,7 +309,7 @@ class Hass:
             return False
         url = f"{HA_URL}/api/states/{entity_id}"
         try:
-            r = requests.get(url, headers=_ha_headers(), timeout=10)
+            r = self._session.get(url, headers=_ha_headers(), timeout=10)
             return r.status_code == 200
         except Exception:
             return False
@@ -347,7 +348,7 @@ class Hass:
             f"&no_attributes=true"
         )
         try:
-            r = requests.get(url, headers=_ha_headers(), timeout=30)
+            r = self._session.get(url, headers=_ha_headers(), timeout=30)
             r.raise_for_status()
             data = r.json()
             logger.debug(f"get_history({entity_id}): got {len(data)} series, first series has {len(data[0]) if data else 0} entries")
@@ -367,7 +368,7 @@ class Hass:
         service = service.replace(".", "/", 1)
         url = f"{HA_URL}/api/services/{service}"
         try:
-            r = requests.post(url, headers=_ha_headers(), json=kwargs, timeout=15)
+            r = self._session.post(url, headers=_ha_headers(), json=kwargs, timeout=15)
             r.raise_for_status()
         except Exception as e:
             logger.error(f"call_service({service}): {e}")
