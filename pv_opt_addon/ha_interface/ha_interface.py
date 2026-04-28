@@ -340,7 +340,7 @@ class Hass:
         start_str = start.strftime("%Y-%m-%dT%H:%M:%S.000Z")
         url = (
             f"{HA_URL}/api/history/period/{start_str}"
-            f"?filter_entity_id={entity_id}&minimal_response=true&no_attributes=false"
+            f"?filter_entity_id={entity_id}&no_attributes=false"
         )
         try:
             r = requests.get(url, headers=_ha_headers(), timeout=30)
