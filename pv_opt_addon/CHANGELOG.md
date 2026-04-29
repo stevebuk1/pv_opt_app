@@ -1,3 +1,6 @@
+## 1.0.0-Beta-3
+- Update Pv_opt to v5.1.2-Beta-7 to address issue 418 in Pv_opt repo
+
 ## 1.0.0-Beta-2
 - Update Pv_opt to v5.1.2-Beta-6 to address issue 446 in Pv_opt repo
 
