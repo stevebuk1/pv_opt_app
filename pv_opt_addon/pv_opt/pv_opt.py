@@ -21,7 +21,7 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-VERSION = "5.1.2-Beta-7"
+VERSION = "5.1.0-Beta-1"
 
 UNITS = {
     "current": "A",
@@ -152,10 +152,9 @@ DOMAIN_ATTRIBUTES = {
 
 DEFAULT_CONFIG = {
     "read_only": {"default": True, "domain": "switch"},
-    "include_export": {"default": True, "domain": "switch"},
     "forced_discharge": {"default": True, "domain": "switch"},
     "allow_cyclic": {"default": False, "domain": "switch"},
-    "fill_first": {"default": False, "domain": "switch"},
+    "charge_to_100": {"default": False, "domain": "switch"},
     "use_solar": {"default": True, "domain": "switch"},
     "ev_part_of_house_load": {"default": True, "domain": "switch"},
     "prevent_discharge": {"default": False, "domain": "switch"},
@@ -433,6 +432,20 @@ DEFAULT_CONFIG = {
     # },
     "id_solcast_today": {"default": "sensor.solcast_pv_forecast_forecast_today"},
     "id_solcast_tomorrow": {"default": "sensor.solcast_pv_forecast_forecast_tomorrow"},
+    "axle_allow_pvopt_writes": {"default": False, "domain": "switch"},
+    "id_axle_start_time": {"default": "sensor.axle_vpp_axle_start_time"},
+    "id_axle_end_time": {"default": "sensor.axle_vpp_axle_end_time"},
+    "axle_export_rate_p": {
+        "default": 100,
+        "domain": "number",
+        "attributes": {
+            "min": 0,
+            "max": 500,
+            "step": 1,
+            "unit_of_measurement": "p/kWh",
+            "mode": "slider",
+        },
+    },
     "use_consumption_history": {"default": True, "domain": "switch"},
     "consumption_history_days": {
         "default": 7,
@@ -630,6 +643,8 @@ class PVOpt(hass.Hass):
 
         self.saving_events = {}
         self.free_electricity_events = {}
+        self.axle_event = None
+
         self.contract = None
         self.car_plugin_detected = 0
         self.car_plugin_detected_delayed = 0
@@ -1669,7 +1684,7 @@ class PVOpt(hass.Hass):
                         self.rlog(f"Trying to load tariff codes: Export: {self.config['octopus_export_tariff_code']}")
                         tariffs["export"] = pv.Tariff(
                             self.config[f"octopus_export_tariff_code"],
-                            export=False,
+                            export=True,
                             host=self,
                         )
                     elif self.get_config("manual_export_tariff", False):
@@ -2033,6 +2048,79 @@ class PVOpt(hass.Hass):
                 )
         else:
             self.log("  No upcoming Octopus Free Electricity Events detected")
+
+
+    def _axle_writes_suspended(self):
+
+        """Return True if inverter writes should be suppressed during the Axle
+        event window. Controlled by the axle_suspend_writes config option — set
+        to False if pv_opt's planned discharge is trusted to align with Axle/Enode
+        and write suppression is not needed."""
+        if self.axle_event is None:
+            return False
+        if not self.get_config("axle_allow_pvopt_writes"):
+            return False
+        now = pd.Timestamp.now(tz="UTC")
+        freq = pd.Timedelta(minutes=self.get_config("optimise_frequency_minutes"))
+        window_start = self.axle_event["start"] - freq
+        window_end = self.axle_event["end"] + freq
+        return window_start <= now <= window_end
+
+    def _load_axle_event(self):
+        """
+        Load the next Axle Energy VPP grid event from the Dean Hall HACS integration
+        (ha-axle-vpp). Entity names default to the standard integration names but can
+        be overridden in apps.yaml via id_axle_start_time, id_axle_end_time, and
+        id_axle_1hr_before.
+
+        Populates self.axle_event with a dict {start, end, rate_p} or None if no
+        upcoming export event is found.
+        """
+        self.axle_event = None
+
+        start_entity = self.config["id_axle_start_time"]
+        end_entity = self.config["id_axle_end_time"]
+
+        # Silently skip if the integration is not installed
+        if not self.entity_exists(start_entity):
+            return
+
+        self.log("")
+        self.log("  Checking for Axle Energy VPP events:")
+
+ 
+        start_state = self.get_state_retry(start_entity)
+        end_state = self.get_state_retry(end_entity) if self.entity_exists(end_entity) else None
+
+        if start_state in (None, "unknown", "unavailable") or end_state in (None, "unknown", "unavailable"):
+            self.log("    Axle entities present but no event data available.")
+            return
+
+        try:
+            event_start = pd.Timestamp(start_state).tz_localize("UTC") if pd.Timestamp(start_state).tzinfo is None else pd.Timestamp(start_state).tz_convert("UTC")
+            event_end = pd.Timestamp(end_state).tz_localize("UTC") if pd.Timestamp(end_state).tzinfo is None else pd.Timestamp(end_state).tz_convert("UTC")
+        except Exception as e:
+            self.log(f"    Could not parse Axle event timestamps: {e}")
+            return
+
+        now = pd.Timestamp.now(tz="UTC")
+
+        if event_end <= now:
+            self.log("    Axle event found but it is in the past — ignoring.")
+            return
+
+        rate_p = self.get_config("axle_export_rate_p")
+        self.axle_event = {
+            "start": event_start,
+            "end": event_end,
+            "rate_p": rate_p,
+        }
+        self.log(
+            f"    Axle export event loaded: {event_start.strftime(DATE_TIME_FORMAT_SHORT)} - "
+            f"{event_end.strftime(DATE_TIME_FORMAT_SHORT)} at {rate_p}p/kWh"
+        )
+
+
 
     def get_ha_value(self, entity_id):
         value = None
@@ -2587,6 +2675,7 @@ class PVOpt(hass.Hass):
         self._load_saving_events_new()  # Resolves Issue #418.
         # self._load_free_electricity_events()
         self._load_free_electricity_events_new()  # Resolves Issue #418
+        self._load_axle_event()
 
         if self.get_config("forced_discharge") and (self.get_config("supports_forced_discharge", True)):
             discharge_enable = "enabled"
@@ -2695,6 +2784,7 @@ class PVOpt(hass.Hass):
         self.pv_system.static_flows.index = [self.time_now] + list(self.pv_system.static_flows.index[1:])
 
         soc_now = self.get_config("id_battery_soc")
+
         self.pv_system.initial_soc = soc_now
         # soc_last_day = self.hass2df(self.config["id_battery_soc"], days=1, log=self.debug)
         # if self.debug and "S" in self.debug_cat:
@@ -2768,6 +2858,29 @@ class PVOpt(hass.Hass):
         # self.log("Self.prices is")
         # self.log(self.prices.to_string())
 
+        # Inject Axle VPP export rate into prices for event slots so the optimiser
+        # correctly values the event and plans a charge-up beforehand.
+        if self.axle_event is not None and "export" in self.prices.columns:
+            axle_rate_p = self.get_config("axle_export_rate_p")
+            event_start = self.axle_event["start"].floor("30min")
+            event_end = self.axle_event["end"].ceil("30min")
+            mask = (
+                (self.prices.index >= event_start)
+                & (self.prices.index < event_end)
+            )
+            if mask.any():
+                self.prices.loc[mask, "export"] = axle_rate_p
+                self.pv_system.prices = self.prices
+                self.log(
+                    f"  Axle VPP: set export rate to {axle_rate_p}p/kWh for "
+                    f"{event_start.strftime(DATE_TIME_FORMAT_SHORT)} - {event_end.strftime(DATE_TIME_FORMAT_SHORT)}"
+                )
+
+
+
+
+
+
         self.pv_system.calculate_flows()
         self.flows = {"Base": self.pv_system.flows}
         self.log("")
@@ -2810,35 +2923,15 @@ class PVOpt(hass.Hass):
 
         cases = {
             "Optimised Charging": {
-                "export": False,
                 "discharge": False,
-                "fill_first": False,
-            },
-            "Optimised PV Export": {
-                "export": True,
-                "discharge": False,
-                "fill_first": False,
             },
             "Forced Discharge": {
-                "export": True,
                 "discharge": True,
-                "fill_first": False,
-            },
-            "Forced Discharge Fill First": {
-                "export": True,
-                "discharge": True,
-                "fill_first": True,
             },
         }
 
-        if not self.get_config("include_export"):
+        if not self.get_config("forced_discharge"):
             self.selected_case = "Optimised Charging"
-
-        elif not self.get_config("forced_discharge"):
-            self.selected_case = "Optimised PV Export"
-
-        elif self.get_config("fill_first"):
-            self.selected_case = "Forced Discharge Fill First"
 
         else:
             self.selected_case = "Forced Discharge"
@@ -2855,9 +2948,7 @@ class PVOpt(hass.Hass):
 
                 self.flows[case] = self.pv_system.optimised_force(
                     log=True,
-                    use_export=cases[case]["export"],
                     discharge=cases[case]["discharge"],
-                    fill_first=cases[case]["fill_first"],
                 )
 
                 self.optimised_cost[case] = self.contract.net_cost(self.flows[case], sum=False)
@@ -2870,9 +2961,7 @@ class PVOpt(hass.Hass):
             for case in cases:
                 self.flows[case] = self.pv_system.optimised_force(
                     log=(case == self.selected_case),
-                    use_export=cases[case]["export"],
                     discharge=cases[case]["discharge"],
-                    fill_first=cases[case]["fill_first"],
                 )
 
                 self.optimised_cost[case] = self.contract.net_cost(self.flows[case], sum=False)
@@ -3176,6 +3265,11 @@ class PVOpt(hass.Hass):
                 status = self.inverter.status
                 self._log_inverterstatus(status)
 
+                if self._axle_writes_suspended():
+                    self.log("Axle VPP event active prior to next slot start: inverter writes suspended.")
+                    self.status("Idle (Axle VPP)")
+                    break
+
                 retries = 0
                 while not self.inverter.timed_mode and retries < WRITE_POLL_RETRIES:
                     retries += 1
@@ -3273,13 +3367,11 @@ class PVOpt(hass.Hass):
                         ):  #  not sure what this line will report
                             self.log("....but status is not hold")
                             self.log(f"  Enabling SOC hold at SOC of {self.hold[0]['soc']:0.0f}%")
-                            # self.inverter.hold_soc_old(enable=True, soc=self.hold[0]["soc"])
-                            self.inverter.hold_soc(enable=True, target_soc=self.hold[0]["soc"])
+                            self.inverter.hold_soc(enable=True, target_soc=self.hold[0]["soc"], start=self.charge_start_datetime, end=self.charge_end_datetime)
                         else:
                             self.log(f"  Inverter already holding SOC of {self.hold[0]['soc']:0.0f}%")
-                            start = None
-                            end = self.charge_end_datetime
-                            self.inverter.hold_soc(enable=True, target_soc=self.hold[0]["soc"])
+                            # Next line commented out - if its already holding there is nothing to update (there used to be when using backup mode)
+                            # self.inverter.hold_soc(enable=True, target_soc=self.hold[0]["soc"], start=None, end=self.charge_end_datetime)
 
                     else:  # if already in Car slot, this bit should run
                         self.log(f"Current charge/discharge window ends in {time_to_slot_end:0.1f} minutes.")
@@ -4993,7 +5085,7 @@ class PVOpt(hass.Hass):
 
         return (changed, written)
 
-    def write_and_poll_value(self, entity_id, value: int | float, tolerance=0.0, verbose=True):
+    def write_and_poll_value(self, entity_id, value: int | float, tolerance=0.0, verbose=False):
         changed = False
         written = False
         if tolerance == -1:
