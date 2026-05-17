@@ -24,7 +24,7 @@ jobs:
         run: |
           rsync -av --delete pv_opt_addon/ beta_repo/pv_opt_addon/
           cp repository.yaml beta_repo/repository.yaml
-          cp README.md beta_repo/README.md
+          # cp README.md beta_repo/README.md
 
       - name: Commit and push to beta repo
         run: |
