@@ -1,0 +1,36 @@
+name: Push to Beta Repo
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  push-to-beta:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pv_opt_app dev branch
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Clone beta repo
+        run: |
+          git clone https://x-access-token:${{ secrets.BETA_REPO_TOKEN }}@github.com/stevebuk1/pv_opt_app_beta.git beta_repo
+
+      - name: Sync files to beta repo
+        run: |
+          rsync -av --delete pv_opt_addon/ beta_repo/pv_opt_addon/
+          cp repository.yaml beta_repo/repository.yaml
+          cp README.md beta_repo/README.md
+
+      - name: Commit and push to beta repo
+        run: |
+          cd beta_repo
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "Beta sync from pv_opt_app dev branch - ${{ github.sha }}"
+          git push
