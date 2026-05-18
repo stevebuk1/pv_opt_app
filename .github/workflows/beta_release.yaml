@@ -27,9 +27,10 @@ jobs:
           # cp repository.yaml beta_repo/repository.yaml
           # cp README.md beta_repo/README.md
 
-      - name: Fix name in config.yaml
+      - name: Fix name and URLs in config.yaml
         run: |
-          sed -i 's/^name:.*/name: PV Opt Beta/' beta_repo/pv_opt_addon/config.yaml          
+          sed -i 's/^name:.*/name: PV Opt Beta/' beta_repo/pv_opt_addon/config.yaml       
+          sed -i 's|^url:.*|url: https://github.com/stevebuk1/pv_opt_app_beta|' beta_repo/pv_opt_addon/config.yaml
 
       - name: Commit and push to beta repo
         run: |
