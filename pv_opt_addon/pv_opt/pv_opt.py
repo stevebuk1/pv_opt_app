@@ -1737,7 +1737,7 @@ class PVOpt(hass.Hass):
     def _manual_tariff(self, direction="import"):
         name = self.get_config(f"manual_{direction}_tariff_name")
         self.log(f"Trying to load manual {direction} tariff {name}")
-        tz = self.get_config(f"manual_{direction}_tariff_tz")
+        tz = self.get_config(f"manual_{direction}_tariff_tz", self.tz)
         if direction == "import":
             fixed = self.get_config(f"manual_{direction}_tariff_standing", 0.0)
         else:
@@ -1752,6 +1752,7 @@ class PVOpt(hass.Hass):
             unit=unit,
             host=self,
             manual=True,
+            tariff_tz=tz,
         )
 
     def _check_tariffs(self):
@@ -2854,33 +2855,6 @@ class PVOpt(hass.Hass):
 
         self.pv_system.prices = self.prices
 
-        # SVB debugging
-        # self.log("Self.prices is")
-        # self.log(self.prices.to_string())
-
-        # Inject Axle VPP export rate into prices for event slots so the optimiser
-        # correctly values the event and plans a charge-up beforehand.
-        if self.axle_event is not None and "export" in self.prices.columns:
-            axle_rate_p = self.get_config("axle_export_rate_p")
-            event_start = self.axle_event["start"].floor("30min")
-            event_end = self.axle_event["end"].ceil("30min")
-            mask = (
-                (self.prices.index >= event_start)
-                & (self.prices.index < event_end)
-            )
-            if mask.any():
-                self.prices.loc[mask, "export"] = axle_rate_p
-                self.pv_system.prices = self.prices
-                self.log(
-                    f"  Axle VPP: set export rate to {axle_rate_p}p/kWh for "
-                    f"{event_start.strftime(DATE_TIME_FORMAT_SHORT)} - {event_end.strftime(DATE_TIME_FORMAT_SHORT)}"
-                )
-
-
-
-
-
-
         self.pv_system.calculate_flows()
         self.flows = {"Base": self.pv_system.flows}
         self.log("")
@@ -3092,8 +3066,13 @@ class PVOpt(hass.Hass):
                         car_on.iat[i] = 1
 
         # Read "prevent_discharge" switch to set a car slot in the current slot and next slot
+        # Also check if Zappi is actively charging (covers non-smart charging sessions)
+        zappi_charging = (
+            self.zappi_plug_entity is not None
+            and self.get_state(self.zappi_plug_entity) == "Charging"
+        )
 
-        if self.get_config("prevent_discharge"):
+        if self.get_config("prevent_discharge") or zappi_charging:
             car_on.iat[0] = 1
             car_on.iat[1] = 1
 
@@ -3568,7 +3547,15 @@ class PVOpt(hass.Hass):
         if self.debug and "O" in self.debug_cat:
             self.log("")
             self.ulog("1/2 Hour Optimsation summary")
-            self.log(f"\n{self.opt.to_string()}")
+
+            # self.log(f"\n{self.opt.round(2).to_string()}")
+
+            opt_display = self.opt.copy()
+            opt_display[["solar", "consumption", "batt_grid_req", "chg", "chg_end", "battery", "grid"]] = opt_display[["solar", "consumption", "batt_grid_req", "chg", "chg_end", "battery", "grid"]].round(0)
+            opt_display[["soc", "soc_end"]] = opt_display[["soc", "soc_end"]].round(1)
+            opt_display[["dt_hours", "import", "export"]] = opt_display[["dt_hours", "import", "export"]].round(2)
+            self.log(f"\n{opt_display.to_string()}")
+
 
         if self.debug and "W" in self.debug_cat:
             self.log("")

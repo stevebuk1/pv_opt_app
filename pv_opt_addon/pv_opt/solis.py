@@ -768,7 +768,7 @@ class SolisInverter(BaseInverterController):
 
         if entity_id is not None:
             changed, written = self.write_to_hass(
-                entity_id=entity_id, value=current, tolerance=current_tolerance, verbose=True
+                entity_id=entity_id, value=current, tolerance=current_tolerance, verbose=False
             )
 
         if changed:
@@ -909,7 +909,7 @@ class SolisSolarmanV2Inverter(SolisInverter):
 
         if entity_id is not None:
             changed, written = self.write_to_hass(
-                entity_id=entity_id, value=current, tolerance=current_tolerance, verbose=True
+                entity_id=entity_id, value=current, tolerance=current_tolerance, verbose=False
             )
 
         if changed:
@@ -969,11 +969,11 @@ class SolisSolaxModbusInverter(SolisInverter):
             if time is not None:
                 entity_id = self._host.config.get(f"id_timed_{direction}_{limit}_hours", None)
                 if entity_id is not None:
-                    changed, written = self.write_to_hass(entity_id=entity_id, value=time.hour, verbose=True)
+                    changed, written = self.write_to_hass(entity_id=entity_id, value=time.hour, verbose=False)
                     value_changed = value_changed or (changed and written)
                 entity_id = self._host.config.get(f"id_timed_{direction}_{limit}_minutes", None)
                 if entity_id is not None:
-                    changed, written = self.write_to_hass(entity_id=entity_id, value=time.minute, verbose=True)
+                    changed, written = self.write_to_hass(entity_id=entity_id, value=time.minute, verbose=False)
                     value_changed = value_changed or (changed and written)
         return value_changed
 
