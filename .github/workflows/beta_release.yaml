@@ -24,7 +24,7 @@ jobs:
       - name: Sync files to beta repo
         run: |
           rsync -av --delete pv_opt_addon/ beta_repo/pv_opt_addon/
-          cp repository.yaml beta_repo/repository.yaml
+          # cp repository.yaml beta_repo/repository.yaml
           # cp README.md beta_repo/README.md
 
       - name: Fix name in config.yaml
