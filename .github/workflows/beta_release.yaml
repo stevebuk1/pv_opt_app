@@ -2,8 +2,8 @@ name: Push to Beta Repo
 
 on:
   push:
-    branches:
-      - dev
+    tags:
+      - 'v*-beta*'
   workflow_dispatch:
   
 jobs:
