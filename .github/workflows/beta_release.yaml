@@ -3,7 +3,7 @@ name: Push to Beta Repo
 on:
   push:
     tags:
-      - 'v*-beta*'
+      - 'v*-[Bb]eta*'
   workflow_dispatch:
   
 jobs:
