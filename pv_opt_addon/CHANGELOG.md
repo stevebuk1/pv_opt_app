@@ -1,3 +1,6 @@
+## 1.0.0-Beta-5
+- Update Pv_opt to v5.1.0-Beta-2 to prevent double inverter writes during setting current
+
 ## 1.0.0-Beta-4
 - Update Pv_opt to v5.1.0-Beta-1 to address issues 444, 450 and 451 in Pv_opt repo
 
