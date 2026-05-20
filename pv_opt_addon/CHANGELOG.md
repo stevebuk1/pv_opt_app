@@ -1,3 +1,8 @@
+## 1.0.0-Beta-6
+- Update Pv_opt to v5.1.0-Beta-3
+   - Prevent double inverter writes during setting times
+   - Fix forced during discharge to limit at charger_power. 
+
 ## 1.0.0-Beta-5
 - Update Pv_opt to v5.1.0-Beta-2 to prevent double inverter writes during setting current
 
