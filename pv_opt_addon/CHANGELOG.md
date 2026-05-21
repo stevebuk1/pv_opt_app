@@ -1,3 +1,7 @@
+## 1.0.0-Beta-8
+- Update Pv_opt to v5.1.0-Beta-5
+   - Reinstantiate Axle Energy Integration
+
 ## 1.0.0-Beta-7
 - Update Pv_opt to v5.1.0-Beta-4
    - Bugfix for Saving Sessions and Free Electrity Sessions (#455 in Pv_opt repo)
