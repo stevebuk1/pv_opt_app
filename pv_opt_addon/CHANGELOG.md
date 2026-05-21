@@ -1,3 +1,7 @@
+## 1.0.0-Beta-7
+- Update Pv_opt to v5.1.0-Beta-4
+   - Bugfix for Saving Sessions and Free Electrity Sessions (#455 in Pv_opt repo)
+   
 ## 1.0.0-Beta-6
 - Update Pv_opt to v5.1.0-Beta-3
    - Prevent double inverter writes during setting times
