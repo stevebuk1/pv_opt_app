@@ -1,5 +1,5 @@
 # PV Opt App: Home Assistant Solar/Battery Optimiser 
-App (AddOn) v1.0.0-Beta-8, utilising Pv_opt v5.1.0-Beta-5. 
+App (AddOn) v1.0.0, utilising Pv_opt v5.1.0. 
 
 <h2>Introduction</h2>
 
@@ -13,6 +13,8 @@ Pv_opt itself is unchanged from the AppDaemon version and so will behave identic
 
 If you are currently running PV_opt under AppDaemon, follow this section, otherwise go to Installation Instuctions below . 
 
+* Make a copy of your Pv_opt config.yaml file (its at /homeasistant/appdaemon/apps/pv_opt/config/config.yaml). 
+
 * Stop Appdaemon, and make sure the toggles "Start on Boot" and "Watchdog" are set to off (or remove Pv_opt from AppDaemon if you have other AppDeamon apps still running).
 * Open your Home Assistant instance and show the Add app repository dialog with a specific repository URL pre-filled.
 * Go to settings, apps, install app
@@ -25,9 +27,10 @@ If you are currently running PV_opt under AppDaemon, follow this section, otherw
 
 
 Notes:
-* The installer will copy across your config.yaml from the AppDaemon area, this will now live at /config/pv_opt/config.yaml. No changes are required. 
-* pv_opt.log is now written to /config/pv_opt/pv_opt.log
-* error.log is now written to /config/pv_opt/error.log
+* The installer will copy across your config.yaml from the AppDaemon area (if installed at /homeasistant/appdaemon/apps/pv_opt/config/config.yaml)
+  this will now live at /homeassistant/pv_opt/config.yaml. No changes are required. 
+* pv_opt.log is now written to /homeassistant/pv_opt/pv_opt.log
+* error.log is now written to /homeassistant/pv_opt/error.log
 * There is also a live log in the Log Tab of the App which includes the contents of both logs as well as any logging that went to main.log/AppDaemon.log.
 
 And remember: Do not run the Pv_opt App at the same time as Pv_opt within AppDaemon. 
@@ -201,9 +204,9 @@ These are the main parameters that will control how PV Opt runs:
 
 | Parameter                |   Units    | Entity                                    | Default | Description                                                                                                                                                                                                                  |
 | :----------------------- | :--------: | :---------------------------------------- | :-----: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Read Only Mode           | `on`/`off` | `switch.pvopt_read_only`                  |   On    | Controls whether the app will actually control the inverter. Start with this on until you are happy the charge/discharge plan makes sense.                                                                                   |
-| Optimise Charging        | `on`/`off` | `switch.pvopt_forced_charge`              |   On    | Controls whether the app will calculate an Optimised plan. If `off` only the Base forecast will be updated.                                                                                                                  |
-| Optimise Discharging     | `on`/`off` | `switch.pvopt_forced_discharge`           |   On    | Controls whether the app will allow for forced discharge as well as charge                                                                                                                                                   |
+| Read Only Mode           | `on`/`off` | `switch.pvopt_read_only`                  |   On    | Controls whether the app will actually control the inverter. Start with this on until you are happy the charge/discharge plan makes sense.                                                                             |
+| Charge to 100%           | `on`/`off` | `switch.pvopt_charge_to_100`                  |   Off    | Override Optimised Charging by instead charging to 100% in the cheap rate, keeping as low a charge rate as possible such that 100% is reached smoothly by the end of the cheap rate period. During Winter, on a tariff that has a defined cheap rate (Go, IOG, Cosy etc) theres little benefit to be gained by optimizing battery use to achieve a battery SOC of "flat" just before the next cheap rate begins, as errors in consumption and solcast mean that "flat" can happen early with a large consequential cost. Any benefit of leaving room for solar to fill the battery (which Pv_opt will normally do) is largely neglible in winter. Note: this mode is ultimately an overide of the prime aim of Pv_opt, which is to optimise based on cost, but is provided where error margins can lead to a frequent flat battery. It has no effect for Octopus Agile users nor if Optimise Discharging is selected (see below). The cost of this plan is displayed in "Optimsed Charging" so it can be compared with Base (no charging or discharging). |
+| Optimise Discharging     | `on`/`off` | `switch.pvopt_forced_discharge`           |   On   | Controls whether the app will allow for forced discharge as well as charge                                                                                                                                                   |
 | Allow Cyclic             | `on`/`off` | `switch.pvopt_allow_cyclic`               |   On    | Controls whether the app will allow cycles of alternating charge/discharge                                                                                                                                                   |
 | Use Solar                | `on`/`off` | `switch.pvopt_use_solar`                  |   On    | Controls whether the app will use the Solcast solar forecast. If set to Off no solar will be used but battery charging can still be optimised for a time-of use tariff.                                                      |
 | Solcast Confidence Level |  `number`  | `number.pvopt_solcast_confidence_level`   | Solcast | Selects which the Confidence Level for the Solcast forecast. Levels between 10% and 50% are weighted from the Solcast 10% and 50% forecasts. Levels between 50% and 90% are weighted from the Solcast 50% and 10% forecasts. |
@@ -225,7 +228,7 @@ These parameters will define how PV Opt estimates daily consumption:
 
 | Parameter               |  Units     | Entity                                 |  Default | Description                                                                                       |
 | :---------------------- | :--------: | :------------------------------------- | :------: | :------------------------------------------------------------------------------------------------ |
-| EV Charger                | None / Zappi / Other | `select.pvopt_ev_charger` |  None    | Set EV Charger Type. At the current release, only 'Zappi' is supported, 'Other' is unused and is for a future release. Note: Zappi support requires the MyEnergi integration to be installed. |
+| EV Charger                | None / Zappi / Other | `select.pvopt_ev_charger` |  None    | Set EV Charger Type. At the current release, only 'Zappi' is supported, 'Other' is unused and is for a future release. Note: Zappi support requires the MyEnergi HA integration to be installed. |
 | EV Part of House Load     |       On / Off       | `switch.pvopt_ev_part_of_house_load` |   On    | Prevents house battery discharge when EV is charging. If your EV Charger is wired so it is seen as part of the house load, then it will discharge to the EV when the EV is charging. Setting this to On prevents this, as well as ensuring that any EV consumption is removed from Consumption History. If your Zappi is wired on its own Henley block and thus outside of what the inverter CT clamp will measure, then set this to Off. Note: PV Opt does not support allowing the house battery to be used to charge the car. |
 | Car Charge Plan           |         kWh          | `switch.control_car_charging` |   Off    | Toggle Car Plan generation On/Off. For users on Agile, setitng to On will generate a candidate car charging plan on each optimiser run based on the settings below. The candidate plan is made active upon car plugin, or via Dashbaord command (see "Transfer Car Charge Plan" below). The active car charging plan is output live on binary_sensor.pvopt_car_charging_slot for use in HA automations to switch the EV charger on and off. An example HA automation to control a Zappi charger is included [here](https://github.com/stevebuk1/pv_opt/blob/main/files/zappi_automation.yaml). Intelligent Octopus Go users should set this to Off. If Off, the rest of the EV parameters below have no effect. |
 | Transfer Car Charge Plan  |        On/Off        | `switch.transfer_car_charge_plan` |    30     | Make Candidate Car Charging Plan the active plan. Useful if adjusting any of the below paramaters after the car has been plugged in. This will automatically be set back to Off after the plan is transferred. This ensures any external HA automations used to auto-calculate "Car Charge to Add" based on car SOC don't corrupt the car charging plan once the car starts charging. |
@@ -256,7 +259,7 @@ These parameters set the price that PV Opt uses:
 Import and/or export tarifs can be set manually as follows. These can be combined with Octopus Account Codes (ie you could set Octopus Agile for input using `octopus_import_tariff_code` and a manual export). Manual tariffs <b>will not work</b> with either `Octopus Auto` or `Octopus Account`.
 
     manual_import_tariff: True
-    manual_import_tariff_name: Test Importe
+    manual_import_tariff_name: Test Import
     manual_import_tariff_tz: GB
     manual_import_tariff_standing: 43
     manual_import_tariff_unit:
@@ -281,6 +284,14 @@ Import and/or export tarifs can be set manually as follows. These can be combine
         price: 50.0
       - period_start: "14:00"
         price: 0.0
+
+<h4>Axle Energy Information</h4>
+
+| Parameter                  |   Units    | Entity                       | Default | Description                                                                                              |
+| :------------------------- | :--------: | :--------------------------- | :-----: | :------------------------------------------------------------------------------------------------------- |
+| Pv_opt control during Axle events   |  `True/False`  | `switch.pv_opt_axle_allow_pvopt_writes`      | True | Allow Pv_opt to write to inverter during Axle Energy events. Axle should control your inverter during an event but has been known to start late or not at all. Until Axle fix this it is recommended that Pv_opt should also control your inverter, which given the current export price will almost certainly schedule an export event and as such there will be no conflicts.                                                      |
+| Axle Energy export price   |  pence  | `number.pvopt_axle_export_rate_p`   |  100p   | Price for Axle Energy Export events. Defaults to 100p which is the current price Axle offer for all events. Change it here if it changes.                                                           |
+
 
 <h3>Tuning Parameters</h3>
 These parameters will tweak how PV Opt runs:
@@ -313,13 +324,9 @@ In this example three alternatives are tested. For each tariff pair the Base and
 
 <h2>Output</h2>
 
-The app always produces a Base forecast of future battery SOC and the associated grid flow based on the forecast solar performance, the expected consumption and prices with no forced charging or discharging from the grid.
-
-The total cost for today and tomorrow is written to `sensor.pvopt_base_cost` and the associated SOC vs time is written to the attributes of this entity allowing it to be graphes using `apex-charts`.
-
-The app also always produces an optimsised charging plan, this is calculated and written to `sensor.pvopt_opt_cost`. This will also include a list of forced charge windows. 
-
-Forced discharging can also be enabled to see if that produces a further cost saving. This is also written to `sensor.pvopt_opt_cost`. 
+The app always produces: 
+1) a Base forecast of future battery SOC and the associated grid flow based on the forecast solar performance, the expected consumption and prices with no forced charging or discharging from the grid.. The total cost for today and tomorrow is written to `sensor.pvopt_base_cost` and the associated SOC vs time is written to the attributes of this entity allowing it to be graphed using `apex-charts`.
+2) An "Optimsised Charging" plan, written to `sensor.pvopt_opt_cost`. In addition to the parameters written to base_cost this will also include a list of charge windows.
 
 The easiest way to control and visualise this is through the `dashboards/pvopt_dashboard.yaml` Lovelace yaml file included in this repo. 
 
