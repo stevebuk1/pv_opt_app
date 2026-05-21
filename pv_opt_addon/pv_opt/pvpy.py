@@ -81,6 +81,7 @@ class Tariff:
         eco7_start="01:00",
         host=None,
         manual=False,
+        tariff_tz=None,
         **kwargs,
     ) -> None:
         self.name = name
@@ -94,6 +95,8 @@ class Tariff:
             self.log = host.log
             self.rlog = host.rlog
             self.tz = host.tz
+
+        self.tariff_tz = tariff_tz if tariff_tz is not None else self.tz
 
         # SVB logging
         # self.log("")
@@ -270,6 +273,8 @@ class Tariff:
             df = df["unit"].loc[start:end]
 
         elif self.manual:
+            local_start = start.tz_convert(self.tariff_tz).floor("1D")
+            local_end = end.tz_convert(self.tariff_tz).ceil("1D")
             df = (
                 pd.concat(
                     [
@@ -278,8 +283,8 @@ class Tariff:
                             data=[{"unit": x["price"]} for x in self.unit],
                         ).sort_index()
                         for midnight in pd.date_range(
-                            start.floor("1D") - pd.Timedelta("1D"),
-                            end.ceil("1D"),
+                            local_start - pd.Timedelta("1D"),
+                            local_end,
                             freq="1D",
                         )
                     ]
@@ -288,6 +293,7 @@ class Tariff:
                 .ffill()
                 .loc[start:end]
             )
+            df.index = df.index.tz_convert("UTC")
 
         else:
             df = pd.DataFrame(self.unit).set_index("valid_from")["value_inc_vat"]
@@ -593,11 +599,13 @@ class BatteryModel:
         max_dod: float = 0.15,
         current_limit_amps: int = 100,
         voltage: int = 50,
+        charger_power: int = None,
     ) -> None:
         self.capacity = capacity
         self.max_dod = max_dod
         self.current_limit_amps = current_limit_amps
         self.voltage = voltage
+        self.charger_power = charger_power
 
     def __str__(self):
         pass
@@ -618,6 +626,8 @@ class BatteryModel:
     @property
     def max_discharge_power(self) -> int:
         """returns the maximum watts at which the battery can discharge."""
+        if self.charger_power is not None:
+            return min(self.max_charge_power, self.charger_power)
         return self.max_charge_power
 
 
@@ -753,9 +763,24 @@ class Contract:
         nc = imp_df["fixed"]
         nc += imp_df["unit"] * grid_imp / 1000 * dt
 
+        axle_event = getattr(self.host, "axle_event", None)
+
         if self.tariffs["export"] is not None:
             exp_df = self.tariffs["export"].to_df(start=start.floor("30min"), end=end, **kwargs)
             exp_df.index = [start] + list(exp_df.index[1:])
+        elif axle_event is not None:
+            exp_df = pd.DataFrame({"unit": 0.0, "fixed": 0.0}, index=imp_df.index)
+        else:
+            exp_df = None
+
+        if exp_df is not None:
+            if axle_event is not None:
+                axle_rate_p = self.host.get_config("axle_export_rate_p")
+                event_start = axle_event["start"].floor("30min")
+                event_end = axle_event["end"].ceil("30min")
+                mask = (exp_df.index >= event_start) & (exp_df.index < event_end)
+                exp_df.loc[mask, "unit"] += axle_rate_p
+
             nc += exp_df["unit"] * grid_exp / 1000 * dt
 
         if kwargs.get("log") and (self.host.debug and "F" in self.host.debug_cat):
@@ -821,7 +846,7 @@ class PVsystemModel:
 
         self.flows = self.static_flows.copy()[[solar_id, consumption_id]].set_axis(["solar", "consumption"], axis=1)
         self.flows["dt_hours"] = get_dt_hours(self.flows)
-        self.flows["battery_grid_requirement"] = self.flows["consumption"] - self.flows["solar"]
+        self.flows["batt_grid_req"] = self.flows["consumption"] - self.flows["solar"]
         self.flows["forced"] = 0
         self.flows["battery_temp"] = self.flows["consumption"] - self.flows["solar"]
         # forced_charge = pd.Series(index=self.flows.index, data=0)
@@ -878,9 +903,14 @@ class PVsystemModel:
             self.flows["battery"] * self.inverter.inverter_efficiency
         )
         self.flows.loc[self.flows["battery"] < 0, "battery"] = self.flows["battery"] / self.inverter.charger_efficiency
-        self.flows["grid"] = (self.flows["battery_grid_requirement"] - self.flows["battery"]).round(0)
+        self.flows["grid"] = (self.flows["batt_grid_req"] - self.flows["battery"]).round(0)
+        # Cap export to inverter output limit (negative grid = export)
+        self.flows["grid"] = self.flows["grid"].clip(lower=-self.inverter.inverter_power)
         self.flows["soc"] = (self.flows["chg"] / self.battery.capacity) * 100
         self.flows["soc_end"] = (self.flows["chg_end"] / self.battery.capacity) * 100
+
+        self.flows.drop(columns=["battery_temp"])
+
 
         if self.prices is not None:
             self.flows = pd.concat(
@@ -912,6 +942,20 @@ class PVsystemModel:
             axis=1,
         )
 
+        # Inject Axle VPP export rate into prices for event slots so the optimiser
+        # correctly values the event and plans a charge-up beforehand.
+
+        if self.host is not None and self.host.axle_event is not None:
+            axle_rate_p = self.host.get_config("axle_export_rate_p")
+            event_start = self.host.axle_event["start"].floor("30min")
+            event_end = self.host.axle_event["end"].ceil("30min")
+            mask = (self.prices.index >= event_start) & (self.prices.index < event_end)
+            if mask.any():
+                if "export" not in self.prices.columns:
+                    self.prices["export"] = 0.0
+                self.prices.loc[mask, "export"] += axle_rate_p
+
+
         if log and (self.host.debug and "B" in self.host.debug_cat):
             self.log("")
             self.log("Prices is")
@@ -934,12 +978,16 @@ class PVsystemModel:
         # Run high cost swaps ignoring export pricing, then with real export pricing.
         # Keep whichever produces the lower cost.
 
-        if log:
-            self.log("High Cost Swaps: running with export pricing and then again but ignoring export pricing")
-
         real_export_prices = self.prices["export"].copy()
 
         self.prices["export"] = 0
+
+        if log:
+            self.log("")
+            self.log("High Cost Usage Swaps (export prices excluded/ignored)")
+            self.log("---------------------")
+            self.log("")
+
         self._high_cost_swaps(log=log)
         slots_no_export = list(self.slots)
         cost_no_export = self.best_cost
@@ -951,6 +999,13 @@ class PVsystemModel:
         self.slots = []
 
         self.prices["export"] = real_export_prices
+
+        if log:
+            self.log("")
+            self.log("High Cost Usage Swaps (export prices included)")
+            self.log("---------------------")
+            self.log("")
+
         self._high_cost_swaps(log=log)
         slots_with_export = list(self.slots)
         cost_with_export = self.best_cost
@@ -1084,17 +1139,12 @@ class PVsystemModel:
         # --------------------------------------------------------------------------------------------
         #  Charging 1st Pass
         # --------------------------------------------------------------------------------------------
-        if log:
-            self.log("")
-            self.log("High Cost Usage Swaps")
-            self.log("---------------------")
-            self.log("")
 
-            if log and (self.host.debug and "C" in self.host.debug_cat):
-                self.log(
-                    "SPR = Slot Power Required, SCPA = Slot Charger Power Available, SAC = Slot Available Capacity, RSC = Remaining Slot Capacity"
-                )
-                self.log("")
+        if log and (self.host.debug and "C" in self.host.debug_cat):
+            self.log(
+                "SPR = Slot Power Required, SCPA = Slot Charger Power Available, SAC = Slot Available Capacity, RSC = Remaining Slot Capacity"
+            )
+            self.log("")
 
         done = False
         i = 0
@@ -1146,6 +1196,20 @@ class PVsystemModel:
                             slot_power_required = (
                                 round_trip_energy_required * 1000 / search_window["dt_hours"].loc[window].sum()
                             )
+
+                            # If the charge rate is really low, just use the last 2 slots to charge instead of all of the cheap slots
+                            # Note, will only invoke for cheap rates that last for 3.5 hours or more. (Go, IOG, Eco7)
+
+                            tolerance = self.host.get_config("forced_power_group_tolerance")
+                            window_hours = search_window["dt_hours"].loc[window].sum()
+                            if slot_power_required < (tolerance / 2) and window_hours > 3.5:
+                                window = window[-2:]
+                                slot_power_required = (
+                                    round_trip_energy_required * 1000 / search_window["dt_hours"].loc[window].sum()
+                                )
+                                start_window = window[0]
+                                end_window = window[-1]
+
 
                             if round(cost_at_min_price, 1) < round(max_import_cost, 1):
                                 slots_added = 0
@@ -1434,7 +1498,7 @@ class PVsystemModel:
         # Identify the cheap-rate window: a contiguous block of slots at the
         # minimum import price that is long enough to represent a genuine overnight
         # cheap period (not an isolated Agile bargain slot).
-        MIN_CHEAP_WINDOW_MINUTES = 60
+        MIN_CHEAP_WINDOW_MINUTES = 150
 
         min_import_price = self.flows["import"].min()
         median_import_price = self.flows["import"].median()
@@ -1532,7 +1596,7 @@ class PVsystemModel:
                 self.log(
                     f"WARNING: Cheap-rate window has insufficient headroom to reach 100%. "
                     f"Maximum achievable SOC is approximately "
-                    f"{soc_end_of_window + (total_headroom_wh / self.battery.capacity * 100):.1f}% "
+                    f"{self.flows['soc_end'].iloc[-1] + (total_headroom_wh / self.battery.capacity * 100):.1f}% "
                     f"({shortfall_pct:.1f}% short). Consider a longer charge window or higher charger power."
                 )
 
@@ -1647,15 +1711,12 @@ class PVsystemModel:
                     -min(
                         min(
                             self.battery.max_discharge_power,
-                            # self.inverter.charger_power,  (incorrect, discharging could be using solar as well)
-                            self.inverter.inverter_power,
-                        )
-                        - x["solar"].loc[start_window],
+                            self.inverter.inverter_power - x["solar"].loc[start_window],
+                        ),
                         ((x["soc_end"].loc[start_window] - self.battery.max_dod) / 100 * self.battery.capacity)
                         / x["dt_hours"].loc[start_window],
                     ),
                 )
-
                 slots.append(slot)
 
                 self.calculate_flows(slots=slots)
