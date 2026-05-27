@@ -1,3 +1,6 @@
+## 1.0.2-Beta-1
+- Update to Pv_opt 5.1.3-Beta1 (More fixes for inverter double writes)
+
 ## 1.0.1
 - Update to Pv_opt 5.1.2 (Bugfix for #459 in Pv_opt repo (Axle events to be checked each optimiser run))
 
