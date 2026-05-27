@@ -616,12 +616,13 @@ class SolisInverter(BaseInverterController):
             times["end"] = kwargs.get("end", None)
             current = kwargs.get("current", abs(round(kwargs.get("power", 0) / self.voltage, 1)))
 
-            # SVB debugging
-            # self.log(f"Voltage in solis.py = {self.voltage}")
-            # self.log(f"Current in solis.py = {current}")
-
-            # SVB debugging
-            # self.log(f"Entered control_charge_discharge, Enable = True")
+            # If start is None (charge already active), check if end and current already match
+            if (
+                times["start"] is None
+                and times["end"] == self.status[direction]["end"]
+                and abs(current - self.status[direction]["current"]) <= 2.0
+            ):
+                return
 
             target_soc = kwargs.get("target_soc", None)
 
@@ -969,11 +970,11 @@ class SolisSolaxModbusInverter(SolisInverter):
             if time is not None:
                 entity_id = self._host.config.get(f"id_timed_{direction}_{limit}_hours", None)
                 if entity_id is not None:
-                    changed, written = self.write_to_hass(entity_id=entity_id, value=time.hour, verbose=False)
+                    changed, written = self.write_to_hass(entity_id=entity_id, value=time.hour, verbose=False, tolerance=0.5)
                     value_changed = value_changed or (changed and written)
                 entity_id = self._host.config.get(f"id_timed_{direction}_{limit}_minutes", None)
                 if entity_id is not None:
-                    changed, written = self.write_to_hass(entity_id=entity_id, value=time.minute, verbose=False)
+                    changed, written = self.write_to_hass(entity_id=entity_id, value=time.minute, verbose=False, tolerance=0.5)
                     value_changed = value_changed or (changed and written)
         return value_changed
 
