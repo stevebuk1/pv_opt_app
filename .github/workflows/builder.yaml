@@ -1,0 +1,147 @@
+# ============================================================
+# PV Opt Add-On — Build & publish multi-arch Docker images
+# ============================================================
+#
+# Triggers:
+#   • On GitHub Release published  → builds & pushes to ghcr.io
+#   • workflow_dispatch             → manual run (push: false by default,
+#                                     set INPUT_PUSH=true to push)
+#
+# Images pushed per release (example for v1.0.2):
+#   ghcr.io/stevebuk1/amd64-pv_opt:1.0.2
+#   ghcr.io/stevebuk1/aarch64-pv_opt:1.0.2
+#   ghcr.io/stevebuk1/pv_opt:1.0.2          ← multi-arch manifest (used by HA)
+#   ghcr.io/stevebuk1/pv_opt:latest
+#
+# config.yaml must contain:
+#   image: "ghcr.io/stevebuk1/pv_opt"
+# ============================================================
+
+name: Build and publish Docker images
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push images to ghcr.io?"
+        required: false
+        default: "false"
+
+env:
+  # Architectures to build — must match arch list in config.yaml
+  # armhf, armv7, i386 excluded: removed from home-assistant/builder in
+  # 2025.11.0 and dropped from Supervisor's ARCH_ALL in 2026.04.0.
+  # Only amd64 and aarch64 are officially supported as of this writing.
+  ARCHITECTURES: '["amd64", "aarch64"]'
+  IMAGE_NAME: pv_opt
+
+permissions:
+  contents: read
+
+jobs:
+  # ──────────────────────────────────────────────────────────
+  # 1. Work out the version string and build matrix
+  # ──────────────────────────────────────────────────────────
+  init:
+    name: Initialise build
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      version: ${{ steps.version.outputs.version }}
+      push: ${{ steps.push.outputs.push }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            # Strip leading 'v' from tag (e.g. v1.0.2 → 1.0.2)
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+
+            # Guard: config.yaml must already say this version, or Supervisor
+            # will 404 trying to pull a tag that doesn't match what it reads
+            # from config.yaml. Bump config.yaml BEFORE cutting the release.
+            CONFIG_VERSION=$(grep '^version:' pv_opt_addon/config.yaml | sed 's/version: *"\?\([^"]*\)"\?/\1/')
+            if [ "${VERSION}" != "${CONFIG_VERSION}" ]; then
+              echo "::error::Release tag (${VERSION}) does not match pv_opt_addon/config.yaml version (${CONFIG_VERSION}). Update config.yaml and re-tag before releasing."
+              exit 1
+            fi
+          else
+            # Manual run — read version from config.yaml
+            VERSION=$(grep '^version:' pv_opt_addon/config.yaml | sed 's/version: *"\?\([^"]*\)"\?/\1/')
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building version: ${VERSION}"
+
+      - name: Determine whether to push
+        id: push
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=${{ github.event.inputs.push }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare build matrix
+        id: matrix
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@2026.06.0
+        with:
+          architectures: ${{ env.ARCHITECTURES }}
+          image-name: ${{ env.IMAGE_NAME }}
+
+  # ──────────────────────────────────────────────────────────
+  # 2. Build one image per architecture (runs in parallel)
+  # ──────────────────────────────────────────────────────────
+  build:
+    name: Build ${{ matrix.arch }} image
+    needs: init
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write   # needed for Cosign signing
+      packages: write   # push to ghcr.io
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.init.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        uses: home-assistant/builder/actions/build-image@2026.06.0
+        with:
+          arch: ${{ matrix.arch }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          image: ${{ matrix.image }}
+          image-tags: |
+            ${{ needs.init.outputs.version }}
+            latest
+          push: ${{ needs.init.outputs.push }}
+          version: ${{ needs.init.outputs.version }}
+          # Dockerfile lives in pv_opt_addon/, not the repo root
+          context: pv_opt_addon
+
+  # ──────────────────────────────────────────────────────────
+  # 3. Combine per-arch images into a single multi-arch manifest
+  # ──────────────────────────────────────────────────────────
+  manifest:
+    name: Publish multi-arch manifest
+    needs: [init, build]
+    if: needs.init.outputs.push == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+    steps:
+      - name: Publish multi-arch manifest
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@2026.06.0
+        with:
+          architectures: ${{ env.ARCHITECTURES }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          image-name: ${{ env.IMAGE_NAME }}
+          image-tags: |
+            ${{ needs.init.outputs.version }}
+            latest
