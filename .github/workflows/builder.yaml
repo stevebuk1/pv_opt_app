@@ -10,6 +10,8 @@
 # Images pushed per release (example for v1.0.2):
 #   ghcr.io/stevebuk1/amd64-pv_opt:1.0.2
 #   ghcr.io/stevebuk1/aarch64-pv_opt:1.0.2
+#   ghcr.io/stevebuk1/armhf-pv_opt:1.0.2
+#   ghcr.io/stevebuk1/armv7-pv_opt:1.0.2
 #   ghcr.io/stevebuk1/pv_opt:1.0.2          ← multi-arch manifest (used by HA)
 #   ghcr.io/stevebuk1/pv_opt:latest
 #
@@ -31,7 +33,9 @@ on:
 
 env:
   # Architectures to build — must match arch list in config.yaml
-  # i386 excluded: HA is dropping i386 support and the numpy/pandas build is fragile
+  # armhf, armv7, i386 excluded: removed from home-assistant/builder in
+  # 2025.11.0 and dropped from Supervisor's ARCH_ALL in 2026.04.0.
+  # Only amd64 and aarch64 are officially supported as of this writing.
   ARCHITECTURES: '["amd64", "aarch64"]'
   IMAGE_NAME: pv_opt
 
@@ -110,8 +114,8 @@ jobs:
             latest
           push: ${{ needs.init.outputs.push }}
           version: ${{ needs.init.outputs.version }}
-          # Point Docker at the add-on subdirectory
-          target: pv_opt_addon
+          # Dockerfile lives in pv_opt_addon/, not the repo root
+          context: pv_opt_addon
 
   # ──────────────────────────────────────────────────────────
   # 3. Combine per-arch images into a single multi-arch manifest
