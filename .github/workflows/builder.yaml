@@ -10,8 +10,6 @@
 # Images pushed per release (example for v1.0.2):
 #   ghcr.io/stevebuk1/amd64-pv_opt:1.0.2
 #   ghcr.io/stevebuk1/aarch64-pv_opt:1.0.2
-#   ghcr.io/stevebuk1/armhf-pv_opt:1.0.2
-#   ghcr.io/stevebuk1/armv7-pv_opt:1.0.2
 #   ghcr.io/stevebuk1/pv_opt:1.0.2          ← multi-arch manifest (used by HA)
 #   ghcr.io/stevebuk1/pv_opt:latest
 #
@@ -63,6 +61,15 @@ jobs:
             # Strip leading 'v' from tag (e.g. v1.0.2 → 1.0.2)
             VERSION="${{ github.event.release.tag_name }}"
             VERSION="${VERSION#v}"
+
+            # Guard: config.yaml must already say this version, or Supervisor
+            # will 404 trying to pull a tag that doesn't match what it reads
+            # from config.yaml. Bump config.yaml BEFORE cutting the release.
+            CONFIG_VERSION=$(grep '^version:' pv_opt_addon/config.yaml | sed 's/version: *"\?\([^"]*\)"\?/\1/')
+            if [ "${VERSION}" != "${CONFIG_VERSION}" ]; then
+              echo "::error::Release tag (${VERSION}) does not match pv_opt_addon/config.yaml version (${CONFIG_VERSION}). Update config.yaml and re-tag before releasing."
+              exit 1
+            fi
           else
             # Manual run — read version from config.yaml
             VERSION=$(grep '^version:' pv_opt_addon/config.yaml | sed 's/version: *"\?\([^"]*\)"\?/\1/')
