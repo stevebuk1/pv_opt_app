@@ -5,7 +5,7 @@ on:
     tags:
       - 'v*-[Bb]eta*'
   workflow_dispatch:
-  
+
 jobs:
   push-to-beta:
     runs-on: ubuntu-latest
@@ -21,16 +21,34 @@ jobs:
         run: |
           git clone https://x-access-token:${{ secrets.BETA_REPO_TOKEN }}@github.com/stevebuk1/pv_opt_app_beta.git beta_repo
 
-      - name: Sync files to beta repo
+      - name: Sync add-on files to beta repo
         run: |
           rsync -av --delete pv_opt_addon/ beta_repo/pv_opt_addon/
-          # cp repository.yaml beta_repo/repository.yaml
-          # cp README.md beta_repo/README.md
 
-      - name: Fix name and URLs in config.yaml
+      - name: Sync GitHub Actions workflows to beta repo
         run: |
-          sed -i 's/^name:.*/name: PV Opt Beta/' beta_repo/pv_opt_addon/config.yaml       
+          mkdir -p beta_repo/.github/workflows
+          rsync -av --delete .github/workflows/ beta_repo/.github/workflows/
+          # Remove beta_release.yaml from the beta repo — it has nothing to push to,
+          # and we don't want an accidental recursive trigger
+          rm -f beta_repo/.github/workflows/beta_release.yaml
+
+      - name: Patch config.yaml for beta repo
+        run: |
+          sed -i 's/^name:.*/name: PV Opt Beta/' beta_repo/pv_opt_addon/config.yaml
           sed -i 's|^url:.*|url: https://github.com/stevebuk1/pv_opt_app_beta|' beta_repo/pv_opt_addon/config.yaml
+          # Point image at the beta registry so beta installs don't pull production images
+          if grep -q '^image:' beta_repo/pv_opt_addon/config.yaml; then
+            sed -i 's|^image:.*|image: "ghcr.io/stevebuk1/pv_opt_beta"|' beta_repo/pv_opt_addon/config.yaml
+          else
+            echo 'image: "ghcr.io/stevebuk1/pv_opt_beta"' >> beta_repo/pv_opt_addon/config.yaml
+          fi
+
+      - name: Patch builder.yaml IMAGE_NAME for beta repo
+        run: |
+          # builder.yaml uses IMAGE_NAME as the ghcr.io image name.
+          # Override it so the beta repo builds/pushes to pv_opt_beta, not pv_opt.
+          sed -i 's/IMAGE_NAME: pv_opt$/IMAGE_NAME: pv_opt_beta/' beta_repo/.github/workflows/builder.yaml
 
       - name: Commit and push to beta repo
         run: |
