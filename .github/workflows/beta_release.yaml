@@ -37,12 +37,11 @@ jobs:
         run: |
           sed -i 's/^name:.*/name: PV Opt Beta/' beta_repo/pv_opt_addon/config.yaml
           sed -i 's|^url:.*|url: https://github.com/stevebuk1/pv_opt_app_beta|' beta_repo/pv_opt_addon/config.yaml
-          # Point image at the beta registry so beta installs don't pull production images
-          if grep -q '^image:' beta_repo/pv_opt_addon/config.yaml; then
-            sed -i 's|^image:.*|image: "ghcr.io/stevebuk1/pv_opt_beta"|' beta_repo/pv_opt_addon/config.yaml
-          else
-            echo 'image: "ghcr.io/stevebuk1/pv_opt_beta"' >> beta_repo/pv_opt_addon/config.yaml
-          fi
+          # Remove image: field so Supervisor builds the image locally from the Dockerfile
+          # rather than trying to pull a pre-built image that doesn't exist in ghcr.io.
+          # This restores the pre-builder.yaml convenience for beta testing — no manual
+          # release on pv_opt_app_beta needed, just sync and install.
+          sed -i '/^image:/d' beta_repo/pv_opt_addon/config.yaml
 
       - name: Patch builder.yaml IMAGE_NAME for beta repo
         run: |
