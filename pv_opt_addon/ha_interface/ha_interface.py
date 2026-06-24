@@ -79,6 +79,13 @@ def app_lock(fn):
     return wrapper
 
 
+def _mqtt_topic_matches(pattern: str, topic: str) -> bool:
+    """Match paho-style MQTT topic patterns with # and + wildcards."""
+    import re
+    regex = re.escape(pattern).replace(r"\#", ".*").replace(r"\+", "[^/]+")
+    return bool(re.fullmatch(regex, topic))
+
+
 # ---------------------------------------------------------------------------
 # MQTTShim – thin paho wrapper; mirrors AppDaemon's MQTT plugin API
 # ---------------------------------------------------------------------------
@@ -95,16 +102,19 @@ class MQTTShim:
             self._client.username_pw_set(MQTT_USER, MQTT_PASS)
         self._topic_callbacks: dict[str, list[Callable]] = {}
 
-        def _on_message(client, userdata, msg):
-            topic = msg.topic
-            payload = msg.payload.decode("utf-8", errors="replace")
-            for t, cbs in list(self._topic_callbacks.items()):
-                if topic == t:
-                    for cb in cbs:
-                        try:
-                            cb(payload)
-                        except Exception as e:
-                            logger.error(f"MQTT callback error on {topic}: {e}")
+    def _on_message(client, userdata, msg):
+        topic = msg.topic
+        payload = msg.payload.decode("utf-8", errors="replace")
+        for t, cbs in list(self._topic_callbacks.items()):
+            # Support '#' wildcard and '+' single-level wildcard
+            if topic == t or t == "#" or (
+                "+" in t and _mqtt_topic_matches(t, topic)
+            ):
+                for cb in cbs:
+                    try:
+                        cb(topic, payload)   # pass topic so caller knows which entity
+                    except Exception as e:
+                        logger.error(f"MQTT callback error on {topic}: {e}")
 
         self._client.on_message = _on_message
         try:
@@ -134,9 +144,9 @@ class MQTTShim:
         """
         actual_topic = kwargs.get("entity_id", topic)
 
-        def _wrap(payload):
+        def _wrap(topic, payload):
             try:
-                callback(actual_topic, None, None, payload, {})
+                callback(topic, None, None, payload, {})
             except Exception as e:
                 logger.error(f"MQTT listen_state callback error: {e}")
 

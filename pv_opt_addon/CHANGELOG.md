@@ -1,3 +1,9 @@
+## 1.0.4-Beta-1
+- Bugfixes for issues 39 and 40 - MQTT updates not updating Pv_opt. Pv_opt updated to 5.1.3-Beta-3
+
+## 1.0.3
+- Update repo to use prebuilt images
+
 ## 1.0.2-Beta-1
 - Update to Pv_opt 5.1.3-Beta1 (More fixes for inverter double writes)
 
