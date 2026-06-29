@@ -185,6 +185,11 @@ class Hass:
         self._main_loop: asyncio.AbstractEventLoop | None = None  # set in _run()
         self._session = requests.Session()  # persistent HTTP session for HA REST API
 
+        # Reconnect state: used by _start_ws_listener() for backoff and by
+        # _dispatch_state_change() to suppress the post-reconnect entity flood.
+        self._ws_reconnect_count: int = 0          # increments on each reconnect
+        self._ws_suppress_until: float = 0.0       # epoch time; callbacks suppressed while time() < this
+
     def _next_handle(self, prefix: str) -> str:
         self._handle_counter += 1
         return f"{prefix}_{self._handle_counter}"
@@ -433,7 +438,19 @@ class Hass:
     # ------------------------------------------------------------------
 
     async def _start_ws_listener(self):
-        RECONNECT_DELAY = 5
+        # Exponential backoff: 5s, 10s, 20s, 40s, capped at 60s.
+        # Resets to 5s after a successful connection that stays up for >60s.
+        RECONNECT_DELAY_BASE = 5
+        RECONNECT_DELAY_MAX = 60
+        # How long (seconds) to suppress state-change callbacks after a reconnect.
+        # HA floods the WS with unavailable→current_value transitions for every
+        # entity; the unavailable guard in pv_opt handles most of these, but a
+        # suppression window at the shim level prevents any edge cases from
+        # triggering spurious optimiser runs.
+        POST_RECONNECT_SUPPRESS_S = 15
+
+        import time
+        reconnect_delay = RECONNECT_DELAY_BASE
 
         while True:
             try:
@@ -474,8 +491,9 @@ class Hass:
                     # Log what events are registered for debugging
                     logger.info(f"WebSocket: registered event listeners: {list(self._event_listeners.keys())}")
 
-                    # Subscribe to custom event types (e.g. PV_OPT trigger)
-                    sub_id = 2
+                    # Subscribe to custom event types (e.g. PV_OPT trigger).
+                    # Use a session-unique sub_id base to avoid duplicate IDs on reconnect.
+                    sub_id = 100 + (self._ws_reconnect_count * 100)
                     subscribed: set[str] = set()
                     for event_name in list(self._event_listeners.keys()):
                         if event_name not in subscribed:
@@ -488,6 +506,19 @@ class Hass:
                             subscribed.add(event_name)
                             logger.info(f"WebSocket: subscribed to event '{event_name}'")
                             sub_id += 1
+
+                    # Set suppression window: ignore state-change callbacks for
+                    # POST_RECONNECT_SUPPRESS_S seconds while HA replays entity states.
+                    if self._ws_reconnect_count > 0:
+                        self._ws_suppress_until = time.time() + POST_RECONNECT_SUPPRESS_S
+                        logger.info(
+                            f"WebSocket: reconnected (attempt {self._ws_reconnect_count}) — "
+                            f"suppressing state callbacks for {POST_RECONNECT_SUPPRESS_S}s"
+                        )
+                    self._ws_reconnect_count += 1
+
+                    # Reset backoff on successful connection
+                    reconnect_delay = RECONNECT_DELAY_BASE
 
                     # Dispatch loop
                     async for raw in ws:
@@ -509,16 +540,29 @@ class Hass:
                             await self._dispatch_event(event_type, data)
 
             except Exception as e:
-                logger.error(f"WebSocket error: {e} — reconnecting in {RECONNECT_DELAY}s")
-                await asyncio.sleep(RECONNECT_DELAY)
+                logger.error(
+                    f"WebSocket error: {e} — reconnecting in {reconnect_delay}s "
+                    f"(attempt {self._ws_reconnect_count + 1})"
+                )
+                await asyncio.sleep(reconnect_delay)
+                # Exponential backoff, capped at max
+                reconnect_delay = min(reconnect_delay * 2, RECONNECT_DELAY_MAX)
 
     async def _dispatch_state_change(self, data: dict):
+        import time
         entity_id = data.get("entity_id", "")
         new_obj = data.get("new_state") or {}
         old_obj = data.get("old_state") or {}
         new_state = new_obj.get("state")
         old_state = old_obj.get("state")
         new_attrs = new_obj.get("attributes", {})
+
+        # Suppress callbacks during the post-reconnect entity flood window.
+        # pv_opt's own unavailable guard also catches most of these, but this
+        # prevents any edge cases from triggering spurious optimiser re-runs.
+        if time.time() < self._ws_suppress_until:
+            logger.debug(f"Post-reconnect suppression: ignoring state_changed for {entity_id} ({old_state} -> {new_state})")
+            return
 
         for handle, (eid, callback, filters) in list(self._state_listeners.items()):
             if eid != entity_id:
