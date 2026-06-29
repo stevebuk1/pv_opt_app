@@ -1,3 +1,10 @@
+## 1.0.4-Beta-2
+- Further Bugfixes for issues 39 and 40 - MQTT updates not updating Pv_opt
+- Include latest Sunsynk code changes (Issue #424 on Pv_opt)
+- Bugfixes for Pv_opt Issue #466.
+  
+Pv_opt updated to 5.1.3-Beta-4
+
 ## 1.0.4-Beta-1
 - Bugfixes for issues 39 and 40 - MQTT updates not updating Pv_opt. Pv_opt updated to 5.1.3-Beta-3
 
