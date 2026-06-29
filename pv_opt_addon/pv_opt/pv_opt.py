@@ -21,7 +21,7 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-VERSION = "5.1.3-Beta-3"
+VERSION = "5.1.3-Beta-4"
 
 UNITS = {
     "current": "A",
@@ -2570,6 +2570,10 @@ class PVOpt(hass.Hass):
                     else:
                         self.log(f"{str_log} <<< FAILED!", level="WARN")
 
+                domain = entity_id.split(".")[0]
+                state_topic = f"homeassistant/{domain}/{entity_id.split('.')[1]}/state"
+                self.mqtt.mqtt_publish(state_topic, new_state.upper() if domain == "switch" else new_state, retain=True)
+
             else:
                 state = self.get_state_retry(entity_id)
 
@@ -2617,9 +2621,21 @@ class PVOpt(hass.Hass):
 
         self.log(f"State change detected for {entity_id} [config item: {item}] from {old} to {new}:")
 
+        if old == "unavailable" or new == "unavailable":
+            self.log(f"  Transition from/to unavailable — re-reading {entity_id} from HA to avoid reconnect noise.")
+            if new != "unavailable":
+                refreshed = self.get_state_retry(entity_id)
+                if refreshed is not None:
+                    self.config_state[item] = refreshed
+            return
+
         if entity_id.startswith("homeassistant/") and entity_id.endswith("/set"):
             state_topic = entity_id[:-4] + "/state"
             self.mqtt.mqtt_publish(state_topic, new, retain=True)
+        elif "." in entity_id:
+            domain, object_id = entity_id.split(".", 1)
+            state_topic = f"homeassistant/{domain}/{object_id}/state"
+            self.mqtt.mqtt_publish(state_topic, new.upper() if domain == "switch" else new, retain=True)
 
 
         self.config_state[item] = new
@@ -4010,7 +4026,7 @@ class PVOpt(hass.Hass):
         for case in self.summary_costs:
             self.write_cost(
                 f"PV_Opt Cost ({case})",
-                entity=f"sensor.{self.prefix}_cost_{case.lower().replace(" ","_")}",
+                entity=f"sensor.{self.prefix}_cost_{case.lower().replace(' ','_')}",
                 cost=self.optimised_cost[case],
                 df=self.flows[case],
                 full=False,

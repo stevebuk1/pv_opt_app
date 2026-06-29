@@ -604,10 +604,10 @@ class SolisInverter(BaseInverterController):
         return code
 
     def control_charge(self, enable, **kwargs):
-        self._control_charge_discharge("charge", enable, **kwargs)
+        return self._control_charge_discharge("charge", enable, **kwargs)
 
     def control_discharge(self, enable, **kwargs):
-        self._control_charge_discharge("discharge", enable, **kwargs)
+        return self._control_charge_discharge("discharge", enable, **kwargs)
 
     def _control_charge_discharge(self, direction, enable, **kwargs):
         times = {}
@@ -615,6 +615,8 @@ class SolisInverter(BaseInverterController):
             times["start"] = kwargs.get("start", None)
             times["end"] = kwargs.get("end", None)
             current = kwargs.get("current", abs(round(kwargs.get("power", 0) / self.voltage, 1)))
+
+            self.log(f"DEBUG guard: start={times['start']} status_start={self.status[direction]['start']} end={times['end']} status_end={self.status[direction]['end']} current={current} status_current={self.status[direction]['current']}")
 
             # If start is None (charge already active), check if end and current already match
             if (
@@ -691,6 +693,8 @@ class SolisInverter(BaseInverterController):
             self.log("6 slot firmware configured, about to write target_soc")
             if changed or (self.status[direction].get("soc", 0) != target_soc):
                 self._set_target_soc(direction, target_soc, forced=True)
+
+        return changed
 
     def hold_soc(self, enable, target_soc=0, **kwargs):
 
