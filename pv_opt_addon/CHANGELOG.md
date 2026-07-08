@@ -1,3 +1,9 @@
+## 1.0.4-Beta-4
+- Write battery current using service set_battery_settings instead of set_solar_settings
+- Remove use of IOG charge_to_add (slots are now read from Octopus API every optimiser run)
+- Use intentionally incorrect entity defaults for id_consumption such that id_consumption_today is used in preference.
+Pv_opt updated to 5.1.3-Beta-6
+
 ## 1.0.4-Beta-3
 - Bugfixes for Pv_opt Issue #466.
 Pv_opt updated to 5.1.3-Beta-5
