@@ -102,19 +102,19 @@ class MQTTShim:
             self._client.username_pw_set(MQTT_USER, MQTT_PASS)
         self._topic_callbacks: dict[str, list[Callable]] = {}
 
-    def _on_message(client, userdata, msg):
-        topic = msg.topic
-        payload = msg.payload.decode("utf-8", errors="replace")
-        for t, cbs in list(self._topic_callbacks.items()):
-            # Support '#' wildcard and '+' single-level wildcard
-            if topic == t or t == "#" or (
-                "+" in t and _mqtt_topic_matches(t, topic)
-            ):
-                for cb in cbs:
-                    try:
-                        cb(topic, payload)   # pass topic so caller knows which entity
-                    except Exception as e:
-                        logger.error(f"MQTT callback error on {topic}: {e}")
+        def _on_message(client, userdata, msg):
+            topic = msg.topic
+            payload = msg.payload.decode("utf-8", errors="replace")
+            for t, cbs in list(self._topic_callbacks.items()):
+                # Support '#' wildcard and '+' single-level wildcard
+                if topic == t or t == "#" or (
+                    "+" in t and _mqtt_topic_matches(t, topic)
+                ):
+                    for cb in cbs:
+                        try:
+                            cb(topic, payload)   # pass topic so caller knows which entity
+                        except Exception as e:
+                            logger.error(f"MQTT callback error on {topic}: {e}")
 
         self._client.on_message = _on_message
         try:
