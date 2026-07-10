@@ -1,3 +1,7 @@
+## 1.0.4-Beta-7
+- serialize MQTT callbacks against optimise_lock; add connect/disconnect logging
+Pv_opt remains at 5.1.3-Beta-7
+
 ## 1.0.4-Beta-6
 - Bugfix for #40, MQTT publish non-functional (fix identing in ha_interface.py)
 Pv_opt remains at 5.1.3-Beta-7
