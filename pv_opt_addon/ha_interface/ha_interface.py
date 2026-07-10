@@ -67,15 +67,19 @@ def _ha_headers() -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# app_lock – no-op (asyncio is single-threaded; pv_opt uses it as a mutex)
-# ---------------------------------------------------------------------------
-
 def app_lock(fn):
-    """Drop-in for @ad.app_lock — no-op in asyncio context."""
+    """
+    Drop-in for @ad.app_lock. Acquires the owning instance's
+    _optimise_lock (an RLock) so that every entry point into optimise()
+    — the initial synchronous call from initialize(), scheduler-triggered
+    runs, event-triggered runs, and state-change-triggered runs (from
+    both the WebSocket and MQTT dispatch paths) — is fully serialized
+    against every other one, regardless of which thread calls it.
+    """
     @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        return fn(*args, **kwargs)
+    def wrapper(self, *args, **kwargs):
+        with self._optimise_lock:
+            return fn(self, *args, **kwargs)
     return wrapper
 
 
@@ -225,7 +229,12 @@ class Hass:
         # Serialises all callbacks that may call optimise() so that a
         # state-change or event trigger cannot start a second optimise()
         # while one is already running (replaces AppDaemon's @app_lock).
-        self._optimise_lock = threading.Lock()
+
+        # RLock (not Lock): optimise() and optimise_state_change() etc. are
+        # all wrapped by app_lock, and optimise_state_change() calls
+        # self.optimise() internally — same thread needs to re-acquire the
+        # lock it already holds. A plain Lock would deadlock on that.
+        self._optimise_lock = threading.RLock()
         self._main_loop: asyncio.AbstractEventLoop | None = None  # set in _run()
         self._session = requests.Session()  # persistent HTTP session for HA REST API
 
