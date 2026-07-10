@@ -96,7 +96,24 @@ class MQTTShim:
     Implements mqtt_publish, mqtt_subscribe, listen_state.
     """
 
-    def __init__(self):
+    # MQTT CONNACK result codes (paho-mqtt v1 callback API).
+    _CONNACK_MESSAGES = {
+        0: "connection accepted",
+        1: "connection refused — incorrect protocol version",
+        2: "connection refused — invalid client identifier",
+        3: "connection refused — server unavailable",
+        4: "connection refused — bad username or password",
+        5: "connection refused — not authorised",
+    }
+
+    def __init__(self, lock: Optional[threading.Lock] = None):
+        # Shared with the owning Hass instance's _optimise_lock so that
+        # MQTT-triggered callbacks (running on paho's own background thread
+        # via loop_start()) can't run concurrently with WebSocket-triggered
+        # callbacks (dispatched through _locked_call). Without this, the two
+        # threads can both enter optimise() at once and corrupt shared
+        # dataframe state mid-calculation.
+        self._lock = lock
         self._client = _paho_mqtt.Client()
         if MQTT_USER:
             self._client.username_pw_set(MQTT_USER, MQTT_PASS)
@@ -116,11 +133,34 @@ class MQTTShim:
                         except Exception as e:
                             logger.error(f"MQTT callback error on {topic}: {e}")
 
+        def _on_connect(client, userdata, flags, rc):
+            # rc == 0 is the only success case. Anything else means the
+            # broker rejected the connection (bad credentials, ACL, etc) —
+            # previously this failed completely silently.
+            reason = self._CONNACK_MESSAGES.get(rc, f"unknown result code {rc}")
+            if rc == 0:
+                logger.info(f"MQTT connected to {MQTT_HOST}:{MQTT_PORT} ({reason})")
+            else:
+                logger.error(
+                    f"MQTT connection to {MQTT_HOST}:{MQTT_PORT} REJECTED by broker: "
+                    f"{reason} — MQTT discovery and state sync will not work until this is fixed"
+                )
+
+        def _on_disconnect(client, userdata, rc):
+            if rc == 0:
+                logger.info("MQTT disconnected cleanly")
+            else:
+                logger.warning(
+                    f"MQTT disconnected unexpectedly (rc={rc}) — paho will attempt to reconnect automatically"
+                )
+
         self._client.on_message = _on_message
+        self._client.on_connect = _on_connect
+        self._client.on_disconnect = _on_disconnect
         try:
             self._client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
             self._client.loop_start()
-            logger.info(f"MQTT connected to {MQTT_HOST}:{MQTT_PORT}")
+            logger.info(f"MQTT connect initiated to {MQTT_HOST}:{MQTT_PORT} — awaiting broker response...")
         except Exception as e:
             logger.error(f"MQTT connect failed: {e} — MQTT discovery will be unavailable")
 
@@ -146,7 +186,11 @@ class MQTTShim:
 
         def _wrap(topic, payload):
             try:
-                callback(topic, None, None, payload, {})
+                if self._lock is not None:
+                    with self._lock:
+                        callback(topic, None, None, payload, {})
+                else:
+                    callback(topic, None, None, payload, {})
             except Exception as e:
                 logger.error(f"MQTT listen_state callback error: {e}")
 
@@ -204,7 +248,7 @@ class Hass:
     def get_plugin_api(self, plugin_name: str):
         if plugin_name.upper() == "MQTT":
             if self._mqtt_shim is None:
-                self._mqtt_shim = MQTTShim()
+                self._mqtt_shim = MQTTShim(lock=self._optimise_lock)
             return self._mqtt_shim
         raise NotImplementedError(f"Plugin '{plugin_name}' is not supported by ha_interface")
 
