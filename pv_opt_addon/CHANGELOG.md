@@ -1,3 +1,7 @@
+## 1.0.4-Beta-9
+- Gate "_active" entity updates from triggering new optimise cycles. 
+Pv_opt updated to 5.1.3-Beta-8  
+
 ## 1.0.4-Beta-8
 - fix(ha_interface): make app_lock actually serialize optimise() entry points
 Pv_opt remains at 5.1.3-Beta-7
