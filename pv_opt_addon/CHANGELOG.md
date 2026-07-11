@@ -1,3 +1,7 @@
+## 1.0.4-Beta-12
+- Remove previous change and debounce optimiser.
+Pv_opt updated to 5.1.3-Beta-10
+
 ## 1.0.4-Beta-11
 
 - Suppress phantom optimiser state change calls until initial optimisation is complete. 
