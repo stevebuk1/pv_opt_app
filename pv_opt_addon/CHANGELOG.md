@@ -1,3 +1,7 @@
+## 1.0.4-Beta-13
+- Try a token method in the debounced optimiser. 
+Pv_opt updated to 5.1.3-Beta-11
+
 ## 1.0.4-Beta-12
 - Remove previous change and debounce optimiser.
 Pv_opt updated to 5.1.3-Beta-10
