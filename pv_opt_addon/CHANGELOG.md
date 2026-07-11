@@ -1,3 +1,7 @@
+## 1.0.4-Beta-10
+- Ensure reads in _value_from_state are case insensitive
+Pv_opt updated, but remains at 5.1.3-Beta-8
+
 ## 1.0.4-Beta-9
 - Gate "_active" entity updates from triggering new optimise cycles. 
 Pv_opt updated to 5.1.3-Beta-8  
