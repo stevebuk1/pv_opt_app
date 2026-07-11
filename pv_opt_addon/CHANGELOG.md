@@ -1,3 +1,7 @@
+## 1.0.4-Beta-14
+- Don't republish to MQTT when values haven't changed.
+Pv_opt updated to 5.1.3-Beta-12
+
 ## 1.0.4-Beta-13
 - Try a token method in the debounced optimiser. 
 Pv_opt updated to 5.1.3-Beta-11
