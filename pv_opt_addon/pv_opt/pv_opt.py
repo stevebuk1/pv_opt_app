@@ -21,7 +21,7 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-VERSION = "5.1.3-Beta-11"
+VERSION = "5.1.3-Beta-12"
 
 UNITS = {
     "current": "A",
@@ -2579,6 +2579,18 @@ class PVOpt(hass.Hass):
             # (see issue #269). Record the new value but don't re-optimise.
             self.config_state[item] = new
             return
+
+        def _same(a, b):
+            if isinstance(a, str) and isinstance(b, str):
+                return a.strip().lower() == b.strip().lower()
+            return a == b
+ 
+        if _same(new, old):
+            # No genuine change — avoid re-publishing/re-triggering on echoes
+            # of our own retained messages
+            self.config_state[item] = new
+            return
+
 
         self.log(f"State change detected for {entity_id} [config item: {item}] from {old} to {new}:")
 
