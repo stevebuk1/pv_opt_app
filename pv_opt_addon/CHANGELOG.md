@@ -1,3 +1,9 @@
+## 1.0.4-Beta-15
+- Fix handling of "None" as a string in _value_from__state.
+- Handle none if returned during loading of Octopus Savings events.
+- Remove dead code.
+Pv_opt updated to 5.1.3-Beta-13
+
 ## 1.0.4-Beta-14
 - Don't republish to MQTT when values haven't changed.
 Pv_opt updated to 5.1.3-Beta-12
