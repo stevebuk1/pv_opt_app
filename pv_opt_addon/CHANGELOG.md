@@ -1,3 +1,8 @@
+## 1.0.4-Beta-16
+- Ensure MQTT STATE topic is updated by pv_opt for all entity changes received by pv_opt. 
+- Correctly update both STATE and SET topics during startup, depending on whether overwrite_ha_on_restart is true or false — previously SET was never refreshed on startup overwrite, leaving stale retained commands that could be replayed and override config.yaml on a later restart.
+Pv_opt updated to 5.1.3-Beta-14
+
 ## 1.0.4-Beta-15
 - Fix handling of "None" as a string in _value_from__state.
 - Handle none if returned during loading of Octopus Savings events.
