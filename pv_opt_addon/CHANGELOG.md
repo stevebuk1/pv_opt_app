@@ -1,8 +1,8 @@
 ## 1.0.04
-- Updates to sunsynk.py to continue Inverter development (Instructions for SunSynk inverters #424)
-- Remove inverter power cap when performing forced discharging at full rate (Discharge rates during Axle events #464)
-- Do not automatically join Octopus Saving Sessions if Axle integration is installed (Axle and Octopus Saving Sessions - only one Demand Flexiblity service allowed #463)
-- Resolve various MQTT issues (Pv_opt reads wrong value from HA after an HA disconnect #466, Inconsistent use of MQTT pv_opt_app#40, Not honouring config pv_opt_app#39)
+- Updates to sunsynk.py to continue Inverter development (https://github.com/stevebuk1/pv_opt/issues/424)
+- Remove inverter power cap when performing forced discharging at full rate (https://github.com/stevebuk1/pv_opt/issues/464)
+- Do not automatically join Octopus Saving Sessions if Axle integration is installed (https://github.com/stevebuk1/pv_opt/issues/463)
+- Resolve various MQTT issues (#466, https://github.com/stevebuk1/pv_opt_app/issues/40,  https://github.com/stevebuk1/pv_opt_app/issues/39)
 Update Pv_opt to 5.1.4.
 
 ## 1.0.3
