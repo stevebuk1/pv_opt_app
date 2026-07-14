@@ -67,16 +67,27 @@ def _ha_headers() -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# app_lock – no-op (asyncio is single-threaded; pv_opt uses it as a mutex)
-# ---------------------------------------------------------------------------
-
 def app_lock(fn):
-    """Drop-in for @ad.app_lock — no-op in asyncio context."""
+    """
+    Drop-in for @ad.app_lock. Acquires the owning instance's
+    _optimise_lock (an RLock) so that every entry point into optimise()
+    — the initial synchronous call from initialize(), scheduler-triggered
+    runs, event-triggered runs, and state-change-triggered runs (from
+    both the WebSocket and MQTT dispatch paths) — is fully serialized
+    against every other one, regardless of which thread calls it.
+    """
     @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        return fn(*args, **kwargs)
+    def wrapper(self, *args, **kwargs):
+        with self._optimise_lock:
+            return fn(self, *args, **kwargs)
     return wrapper
+
+
+def _mqtt_topic_matches(pattern: str, topic: str) -> bool:
+    """Match paho-style MQTT topic patterns with # and + wildcards."""
+    import re
+    regex = re.escape(pattern).replace(r"\#", ".*").replace(r"\+", "[^/]+")
+    return bool(re.fullmatch(regex, topic))
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +100,24 @@ class MQTTShim:
     Implements mqtt_publish, mqtt_subscribe, listen_state.
     """
 
-    def __init__(self):
+    # MQTT CONNACK result codes (paho-mqtt v1 callback API).
+    _CONNACK_MESSAGES = {
+        0: "connection accepted",
+        1: "connection refused — incorrect protocol version",
+        2: "connection refused — invalid client identifier",
+        3: "connection refused — server unavailable",
+        4: "connection refused — bad username or password",
+        5: "connection refused — not authorised",
+    }
+
+    def __init__(self, lock: Optional[threading.Lock] = None):
+        # Shared with the owning Hass instance's _optimise_lock so that
+        # MQTT-triggered callbacks (running on paho's own background thread
+        # via loop_start()) can't run concurrently with WebSocket-triggered
+        # callbacks (dispatched through _locked_call). Without this, the two
+        # threads can both enter optimise() at once and corrupt shared
+        # dataframe state mid-calculation.
+        self._lock = lock
         self._client = _paho_mqtt.Client()
         if MQTT_USER:
             self._client.username_pw_set(MQTT_USER, MQTT_PASS)
@@ -99,18 +127,44 @@ class MQTTShim:
             topic = msg.topic
             payload = msg.payload.decode("utf-8", errors="replace")
             for t, cbs in list(self._topic_callbacks.items()):
-                if topic == t:
+                # Support '#' wildcard and '+' single-level wildcard
+                if topic == t or t == "#" or (
+                    "+" in t and _mqtt_topic_matches(t, topic)
+                ):
                     for cb in cbs:
                         try:
-                            cb(payload)
+                            cb(topic, payload)   # pass topic so caller knows which entity
                         except Exception as e:
                             logger.error(f"MQTT callback error on {topic}: {e}")
 
+        def _on_connect(client, userdata, flags, rc):
+            # rc == 0 is the only success case. Anything else means the
+            # broker rejected the connection (bad credentials, ACL, etc) —
+            # previously this failed completely silently.
+            reason = self._CONNACK_MESSAGES.get(rc, f"unknown result code {rc}")
+            if rc == 0:
+                logger.info(f"MQTT connected to {MQTT_HOST}:{MQTT_PORT} ({reason})")
+            else:
+                logger.error(
+                    f"MQTT connection to {MQTT_HOST}:{MQTT_PORT} REJECTED by broker: "
+                    f"{reason} — MQTT discovery and state sync will not work until this is fixed"
+                )
+
+        def _on_disconnect(client, userdata, rc):
+            if rc == 0:
+                logger.info("MQTT disconnected cleanly")
+            else:
+                logger.warning(
+                    f"MQTT disconnected unexpectedly (rc={rc}) — paho will attempt to reconnect automatically"
+                )
+
         self._client.on_message = _on_message
+        self._client.on_connect = _on_connect
+        self._client.on_disconnect = _on_disconnect
         try:
             self._client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
             self._client.loop_start()
-            logger.info(f"MQTT connected to {MQTT_HOST}:{MQTT_PORT}")
+            logger.info(f"MQTT connect initiated to {MQTT_HOST}:{MQTT_PORT} — awaiting broker response...")
         except Exception as e:
             logger.error(f"MQTT connect failed: {e} — MQTT discovery will be unavailable")
 
@@ -134,9 +188,13 @@ class MQTTShim:
         """
         actual_topic = kwargs.get("entity_id", topic)
 
-        def _wrap(payload):
+        def _wrap(topic, payload):
             try:
-                callback(actual_topic, None, None, payload, {})
+                if self._lock is not None:
+                    with self._lock:
+                        callback(topic, None, None, payload, {})
+                else:
+                    callback(topic, None, None, payload, {})
             except Exception as e:
                 logger.error(f"MQTT listen_state callback error: {e}")
 
@@ -171,9 +229,19 @@ class Hass:
         # Serialises all callbacks that may call optimise() so that a
         # state-change or event trigger cannot start a second optimise()
         # while one is already running (replaces AppDaemon's @app_lock).
-        self._optimise_lock = threading.Lock()
+
+        # RLock (not Lock): optimise() and optimise_state_change() etc. are
+        # all wrapped by app_lock, and optimise_state_change() calls
+        # self.optimise() internally — same thread needs to re-acquire the
+        # lock it already holds. A plain Lock would deadlock on that.
+        self._optimise_lock = threading.RLock()
         self._main_loop: asyncio.AbstractEventLoop | None = None  # set in _run()
         self._session = requests.Session()  # persistent HTTP session for HA REST API
+
+        # Reconnect state: used by _start_ws_listener() for backoff and by
+        # _dispatch_state_change() to suppress the post-reconnect entity flood.
+        self._ws_reconnect_count: int = 0          # increments on each reconnect
+        self._ws_suppress_until: float = 0.0       # epoch time; callbacks suppressed while time() < this
 
     def _next_handle(self, prefix: str) -> str:
         self._handle_counter += 1
@@ -189,7 +257,7 @@ class Hass:
     def get_plugin_api(self, plugin_name: str):
         if plugin_name.upper() == "MQTT":
             if self._mqtt_shim is None:
-                self._mqtt_shim = MQTTShim()
+                self._mqtt_shim = MQTTShim(lock=self._optimise_lock)
             return self._mqtt_shim
         raise NotImplementedError(f"Plugin '{plugin_name}' is not supported by ha_interface")
 
@@ -423,7 +491,19 @@ class Hass:
     # ------------------------------------------------------------------
 
     async def _start_ws_listener(self):
-        RECONNECT_DELAY = 5
+        # Exponential backoff: 5s, 10s, 20s, 40s, capped at 60s.
+        # Resets to 5s after a successful connection that stays up for >60s.
+        RECONNECT_DELAY_BASE = 5
+        RECONNECT_DELAY_MAX = 60
+        # How long (seconds) to suppress state-change callbacks after a reconnect.
+        # HA floods the WS with unavailable→current_value transitions for every
+        # entity; the unavailable guard in pv_opt handles most of these, but a
+        # suppression window at the shim level prevents any edge cases from
+        # triggering spurious optimiser runs.
+        POST_RECONNECT_SUPPRESS_S = 15
+
+        import time
+        reconnect_delay = RECONNECT_DELAY_BASE
 
         while True:
             try:
@@ -464,8 +544,9 @@ class Hass:
                     # Log what events are registered for debugging
                     logger.info(f"WebSocket: registered event listeners: {list(self._event_listeners.keys())}")
 
-                    # Subscribe to custom event types (e.g. PV_OPT trigger)
-                    sub_id = 2
+                    # Subscribe to custom event types (e.g. PV_OPT trigger).
+                    # Use a session-unique sub_id base to avoid duplicate IDs on reconnect.
+                    sub_id = 100 + (self._ws_reconnect_count * 100)
                     subscribed: set[str] = set()
                     for event_name in list(self._event_listeners.keys()):
                         if event_name not in subscribed:
@@ -478,6 +559,19 @@ class Hass:
                             subscribed.add(event_name)
                             logger.info(f"WebSocket: subscribed to event '{event_name}'")
                             sub_id += 1
+
+                    # Set suppression window: ignore state-change callbacks for
+                    # POST_RECONNECT_SUPPRESS_S seconds while HA replays entity states.
+                    if self._ws_reconnect_count > 0:
+                        self._ws_suppress_until = time.time() + POST_RECONNECT_SUPPRESS_S
+                        logger.info(
+                            f"WebSocket: reconnected (attempt {self._ws_reconnect_count}) — "
+                            f"suppressing state callbacks for {POST_RECONNECT_SUPPRESS_S}s"
+                        )
+                    self._ws_reconnect_count += 1
+
+                    # Reset backoff on successful connection
+                    reconnect_delay = RECONNECT_DELAY_BASE
 
                     # Dispatch loop
                     async for raw in ws:
@@ -499,16 +593,29 @@ class Hass:
                             await self._dispatch_event(event_type, data)
 
             except Exception as e:
-                logger.error(f"WebSocket error: {e} — reconnecting in {RECONNECT_DELAY}s")
-                await asyncio.sleep(RECONNECT_DELAY)
+                logger.error(
+                    f"WebSocket error: {e} — reconnecting in {reconnect_delay}s "
+                    f"(attempt {self._ws_reconnect_count + 1})"
+                )
+                await asyncio.sleep(reconnect_delay)
+                # Exponential backoff, capped at max
+                reconnect_delay = min(reconnect_delay * 2, RECONNECT_DELAY_MAX)
 
     async def _dispatch_state_change(self, data: dict):
+        import time
         entity_id = data.get("entity_id", "")
         new_obj = data.get("new_state") or {}
         old_obj = data.get("old_state") or {}
         new_state = new_obj.get("state")
         old_state = old_obj.get("state")
         new_attrs = new_obj.get("attributes", {})
+
+        # Suppress callbacks during the post-reconnect entity flood window.
+        # pv_opt's own unavailable guard also catches most of these, but this
+        # prevents any edge cases from triggering spurious optimiser re-runs.
+        if time.time() < self._ws_suppress_until:
+            logger.debug(f"Post-reconnect suppression: ignoring state_changed for {entity_id} ({old_state} -> {new_state})")
+            return
 
         for handle, (eid, callback, filters) in list(self._state_listeners.items()):
             if eid != entity_id:
