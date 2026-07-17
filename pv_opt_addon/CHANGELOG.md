@@ -8,6 +8,7 @@ Update Pv_opt to 5.1.6-Beta-1
 
 - IOG tariff - update Pv_opt to handle 6 hour charge cap tariff codes. 
   Note: this is a partial fix and requires the use of the previous IOG tariff code being added to config.yaml.
+  
 Update Pv_opt to 5.1.5.
 
 ## 1.0.4
