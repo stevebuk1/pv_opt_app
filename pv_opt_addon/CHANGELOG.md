@@ -1,6 +1,7 @@
 ## 1.0.5-Beta-2
 - Sunsynk bugfixes for Selltime3 (https://github.com/stevebuk1/pv_opt/issues/424)
 - Fix bug in Cyclic removal (if there is a single discharge slot, it is incorrectly tagged as cyclic).
+  
 Update Pv_opt to 5.1.6-Beta-1
 
 ## 1.0.5-Beta-1
