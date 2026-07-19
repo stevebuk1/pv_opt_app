@@ -1,3 +1,11 @@
+## 1.0.5-Beta-3
+Improve error logging in ha_interface.py. 
+
+Update Pv_opt to 5.1.6-Beta-2:
+- Sunsynk bugfixes (https://github.com/stevebuk1/pv_opt/issues/424) - ensure Selltime3 is positive. 
+- Sunsynk bugfixes (https://github.com/stevebuk1/pv_opt/issues/424) - remove Sysworkmode write from disable charging routine.
+- Bugfix for "run_every callback error: unsupported operand type(s) for 'str' and 'int'" error (no issue raised)
+
 ## 1.0.5-Beta-2
 Update Pv_opt to 5.1.6-Beta-1:
 - Sunsynk bugfixes for Selltime3 (https://github.com/stevebuk1/pv_opt/issues/424)
