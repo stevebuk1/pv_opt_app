@@ -1,3 +1,8 @@
+## 1.0.5-Beta-4
+- ha_interface.py, Improve error logging v2
+- requirements.txt, allow use of Pandas libraries 3.X.X. (resolves https://github.com/stevebuk1/pv_opt_app/issues/46).
+Pv_opt remains at 5.1.6-Beta-2.
+
 ## 1.0.5-Beta-3
 Improve error logging in ha_interface.py. 
 
