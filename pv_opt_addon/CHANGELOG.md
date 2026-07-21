@@ -1,4 +1,4 @@
-## 1.0.5-Beta-5
+## 1.0.5-Beta-6
 Update Pv_opt to 5.1.6-Beta-4:
 - Bigfix on last committ for redacting MQTT password (stevebuk1/pv_opt_app#47)
 
