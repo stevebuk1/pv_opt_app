@@ -1,3 +1,8 @@
+## 1.0.5-Beta-5
+Update Pv_opt to 5.1.6-Beta-2:
+- Redact MQTT password (and anything else that looks like a login or key). (Bugfix for stevebuk1/pv_opt_app#47)
+
+
 ## 1.0.5-Beta-4
 - ha_interface.py, Improve error logging v2
 - requirements.txt, allow use of Pandas libraries 3.X.X. (resolves https://github.com/stevebuk1/pv_opt_app/issues/46).
