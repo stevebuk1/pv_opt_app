@@ -2,7 +2,7 @@
 
 # Core scientific stack
 numpy>=1.26,<3
-pandas>=2.0,<3
+pandas>=2.0,<4
 
 # HTTP - used by pvpy.py for Octopus/Solcast API calls
 requests>=2.31

@@ -135,7 +135,7 @@ class MQTTShim:
                         try:
                             cb(topic, payload)   # pass topic so caller knows which entity
                         except Exception as e:
-                            logger.error(f"MQTT callback error on {topic}: {e}")
+                            logger.exception("MQTT callback error on {topic}:")
 
         def _on_connect(client, userdata, flags, rc):
             # rc == 0 is the only success case. Anything else means the
@@ -639,7 +639,7 @@ class Hass:
                     functools.partial(callback, entity_id, filter_attr, old_state, value, {})
                 )
             except Exception as e:
-                logger.error(f"listen_state callback error for {entity_id}: {e}")
+                logger.exception("listen_state callback error for {entity_id}:")
 
     async def _dispatch_event(self, event_name: str, data: dict):
         for callback, kwargs in list(self._event_listeners.get(event_name, [])):
@@ -650,7 +650,7 @@ class Hass:
                     functools.partial(callback, event_name, data, kwargs)
                 )
             except Exception as e:
-                logger.error(f"listen_event callback error for {event_name}: {e}")
+                logger.exception("listen_event callback error for {event_name}:")
 
     def _locked_call(self, fn: Callable):
         """
@@ -674,7 +674,7 @@ class Hass:
                     None, self._locked_call, functools.partial(callback, kwargs)
                 )
             except Exception as e:
-                logger.error(f"run_in callback error: {e}")
+                logger.exception("run_in callback error:")
 
         asyncio.run_coroutine_threadsafe(_delayed(), self._main_loop)
         return self._next_handle("ri")
@@ -699,7 +699,7 @@ class Hass:
                         None, self._locked_call, functools.partial(callback, kwargs)
                     )
                 except Exception as e:
-                    logger.error(f"run_every callback error: {e}")
+                    logger.exception("run_every callback error:")
 
                 # Advance to the next absolute boundary — never drifts regardless
                 # of how long the callback took
@@ -779,7 +779,7 @@ class Hass:
             logger.info("initialize() complete — WS custom event subscriptions unblocked")
             await ws_task
         except Exception as e:
-            logger.error(f"Fatal error in _run(): {e}")
+            logger.exception("Fatal error in _run():")
             ws_task.cancel()
             raise
 

@@ -21,7 +21,7 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-VERSION = "5.1.4"
+VERSION = "5.1.6"
 
 UNITS = {
     "current": "A",
@@ -71,6 +71,8 @@ REDACT_REGEX = [
     r"A-[0-f]{8}",  # Account Number
     r"sk_live_[a-zA-Z0-9]{24}",  # API
 ]
+
+SENSITIVE_ARG_REGEX = re.compile(r"pass|secret|token|api[_-]?key", re.IGNORECASE)
 
 EVENT_TRIGGER = "PV_OPT"
 DEBUG_TRIGGER = "PV_DEBUG"
@@ -1744,8 +1746,10 @@ class PVOpt(hass.Hass):
 
                 if "AGILE" in tariff.name:
                     self.agile = True
-                if "INTELLI" in tariff.name:
+                if "INTELLI" in tariff.name or "IOG" in tariff.name:
                     self.intelligent = True
+                    if not hasattr(self, "io_dispatching_sensor"):
+                        self._get_io_sensors()
 
         if self.agile:
             self.log("  AGILE tariff detected. Rates will update at 16:00 daily")
@@ -1949,21 +1953,17 @@ class PVOpt(hass.Hass):
     def get_ha_value(self, entity_id):
         value = None
 
-        # if the entity doesn't exist return None
         if self.entity_exists(entity_id=entity_id):
             state = self.get_state_retry(entity_id=entity_id)
 
-            # if the state is None return None
             if state is not None:
                 if (state in ["unknown", "unavailable"]) and (entity_id[:6] != "button"):
                     e = f"HA returned {state} for state of {entity_id}"
                     self.status(f"ERROR: {e}")
                     self.log(e, level="ERROR")
-                # if the state is 'on' or 'off' then it's a bool
+                    return None
                 elif state.lower() in ["on", "off", "true", "false"]:
                     value = state.lower() in ["on", "true"]
-
-                # see if we can coerce it into an int 1st and then a floar
                 else:
                     for t in [int, float]:
                         try:
@@ -1971,7 +1971,6 @@ class PVOpt(hass.Hass):
                         except:
                             pass
 
-                # if none of the above return a string
                 if value is None:
                     value = state
 
@@ -1993,7 +1992,19 @@ class PVOpt(hass.Hass):
         else:
             return True
 
+    def _register_sensitive_args(self):
+        """Scan self.args for credential-shaped keys (mqtt_pass, api_token etc.) and
+        register their values with rlog()'s redaction list before anything is logged."""
+        for item, value in self.args.items():
+            if not SENSITIVE_ARG_REGEX.search(item):
+                continue
+            for v in (value if isinstance(value, list) else [value]):
+                if isinstance(v, str) and v and re.escape(v) not in self.redact_regex:
+                    self.redact_regex.append(re.escape(v))
+
     def _load_args(self, items=None):
+        self._register_sensitive_args()
+
         if self.debug and "S" in self.debug_cat:
             self.rlog(self.args)
 
@@ -2634,10 +2645,14 @@ class PVOpt(hass.Hass):
 
             # reload pricing from bottlecap dave sensors on every optimiser run
 
-            self.log("")
-            self.ulog("Reload IOG prices from Octopus Energy Integration")
+            if self.bottlecap_entities["import"] is not None:
+                self.log("")
+                self.ulog("Reload IOG prices from Octopus Energy Integration")
 
-            self.io_prices = self.get_io_tariffs(self.octopus_import_entity[0])
+                self.io_prices = self.get_io_tariffs(self.bottlecap_entities["import"])
+                
+            elif self.debug and "T" in self.debug_cat:
+                self.log("Skipping IOG price reload - no bottlecap entity available (using manual/fallback tariff)")
 
         elif ((pd.Timestamp.now(tz="UTC") - self.contract_last_loaded).total_seconds() / 3600) > 6:
             # Reload every 6 hours
