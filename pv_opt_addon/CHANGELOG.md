@@ -1,6 +1,11 @@
+## 1.0.7-Beta-2
+Update Pv_opt to 5.1.8-Beta-2:
+- Bugfix for "TypeError: unsupported operand type(s) for /: 'str' and 'int'" by
+  Utilising historic SOC if current SOC read fails.
+
 ## 1.0.7-Beta-1
 Update Pv_opt to 5.1.8-Beta-1:
-- Bugifx to address stevebuk1/pv_opt_app#44
+- Bugfix to address stevebuk1/pv_opt_app#44
 
 ## 1.0.6
 Update Pv_opt to 5.1.7:
