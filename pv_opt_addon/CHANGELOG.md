@@ -1,5 +1,5 @@
 ## 1.0.6
-Update Pv_opt to 5.1.6:
+Update Pv_opt to 5.1.7:
 - Bugfix for error message "AttributeError: 'NoneType' object has no attribute 'keys'" when loading free electricity sessions (no issue raised)
 
 ## 1.0.5
