@@ -1,3 +1,22 @@
+## 1.0.6
+Update Pv_opt to 5.1.7:
+Bugfix for error message "AttributeError: 'NoneType' object has no attribute 'keys'" when loading free electricity sessions (no issue raised)
+
+# 1.0.5
+- ha_interface.py, Improve error logging
+- requirements.txt, allow use of Pandas libraries 3.X.X. (resolves #46).
+
+Update Pv_opt to 5.1.6
+- Bigfix on last commit for redacting MQTT password (#47)
+- Redact MQTT password (and anything else that looks like a login or key). (Bugfix for #47)
+- Bugfix for "run_every callback error: unsupported operand type(s) for 'str' and 'int'" error (no issue raised)
+- Fix bug in Cyclic removal (if there is a single discharge slot, it is incorrectly tagged as cyclic).
+- Sunsynk bugfixes for Selltime3 (stevebuk1/pv_opt#424)
+- Sunsynk bugfixes (stevebuk1/pv_opt#424) - ensure Selltime3 is positive.
+- Sunsynk bugfixes (stevebuk1/pv_opt#424) - remove Sysworkmode write from disable charging routine.
+- IOG tariff - update Pv_opt to handle 6 hour charge cap tariff codes. Note: this is a partial fix and requires the use of the previous IOG tariff code being added to config.yaml.
+
+
 ## 1.0.5-Beta-6
 Update Pv_opt to 5.1.6-Beta-4:
 - Bigfix on last committ for redacting MQTT password (stevebuk1/pv_opt_app#47)
