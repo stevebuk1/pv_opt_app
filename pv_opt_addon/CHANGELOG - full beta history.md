@@ -2,7 +2,7 @@
 Update Pv_opt to 5.1.7:
 Bugfix for error message "AttributeError: 'NoneType' object has no attribute 'keys'" when loading free electricity sessions (no issue raised)
 
-# 1.0.5
+## 1.0.5
 - ha_interface.py, Improve error logging
 - requirements.txt, allow use of Pandas libraries 3.X.X. (resolves #46).
 
