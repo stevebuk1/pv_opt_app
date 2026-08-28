@@ -7,6 +7,9 @@ Update Pv_opt to 5.1.8-Beta-5:
 - Handle code=null in Free Electricity Sessions (https://github.com/stevebuk1/pv_opt_app/issues/52)
 - Add year to logging for Free Electricity Session Events (https://github.com/stevebuk1/pv_opt_app/issues/52)
 
+Update Pv_opt to 5.1.8-Beta-3:
+- Fix error introduced in last commit. 
+
 ## 1.0.7-Beta-2
 Update Pv_opt to 5.1.8-Beta-2:
 - Bugfix for "TypeError: unsupported operand type(s) for /: 'str' and 'int'" by
