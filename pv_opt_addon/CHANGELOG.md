@@ -2,8 +2,9 @@
 Update Pv_opt to 5.1.8-Beta-5:
 - Bugfixes for #424
 - If on IOG, use the Octopus Energy Integration for pricing information in preference to the website (#459)
-- Bugfix - axle_allow_pv_opt_writes is inverted. Note: commit includes a fix to make a onetime write to switch.pvopt_axle_allow_pvopt_writes to set it to True, 
-  and will store it has done this by creating a new entity sensor.pvopt_axle_write_polarity_migrated. (#479)
+- Bugfix - axle_allow_pv_opt_writes is inverted.
+       Note: commit includes a fix to make a onetime write to switch.pvopt_axle_allow_pvopt_writes to set it to True, 
+       and will store it has done this by creating a new entity sensor.pvopt_axle_write_polarity_migrated. (#479)
 - Handle code=null in Free Electricity Sessions (https://github.com/stevebuk1/pv_opt_app/issues/52)
 - Add year to logging for Free Electricity Session Events (https://github.com/stevebuk1/pv_opt_app/issues/52)
 
