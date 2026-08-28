@@ -21,7 +21,7 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-VERSION = "5.1.8-Beta-3"
+VERSION = "5.1.8-Beta-5"
 
 UNITS = {
     "current": "A",
@@ -434,7 +434,7 @@ DEFAULT_CONFIG = {
     # },
     "id_solcast_today": {"default": "sensor.solcast_pv_forecast_forecast_today"},
     "id_solcast_tomorrow": {"default": "sensor.solcast_pv_forecast_forecast_tomorrow"},
-    "axle_allow_pvopt_writes": {"default": False, "domain": "switch"},
+    "axle_allow_pvopt_writes": {"default": True, "domain": "switch"},
     "id_axle_start_time": {"default": "sensor.axle_vpp_axle_start_time"},
     "id_axle_end_time": {"default": "sensor.axle_vpp_axle_end_time"},
     "axle_export_rate_p": {
@@ -676,6 +676,7 @@ class PVOpt(hass.Hass):
         # if there are existing entities for the configs in HA then read those values
         # if not, set up entities using MQTT discovery and write the initial state to them
         self._load_args()
+        self._migrate_axle_write_polarity()  #set axle_allow_pvopt_writes to True - one time command
 
         # self._estimate_capacity()
         self._load_pv_system_model()
@@ -1821,6 +1822,7 @@ class PVOpt(hass.Hass):
 
 
     def _load_free_electricity_events(self):
+        DATE_TIME_FORMAT_SHORT_YEAR = "%d-%b-%Y %H:%M %Z"
         if (
             len(
                 [
@@ -1852,19 +1854,23 @@ class PVOpt(hass.Hass):
 
                 self.log("  The following Free Electricty Events have been identified:")
                 for event in free_events:
+                    event_key = event["code"] if event.get("code") is not None else f"id_{event.get('id', '?')}"
+                    if event.get("code") is None:
+                        self.log(f"  Event id={event.get('id', '?')} has no event code from the integration - will use '{event_key}' as key")
                     self.log(
-                        f"{event['code']:8s}: {pd.Timestamp(event  ['start']).strftime(DATE_TIME_FORMAT_SHORT)} - {pd.Timestamp(event['end']).strftime(DATE_TIME_FORMAT_SHORT)}"
+                        f"{str(event_key):8s}: {pd.Timestamp(event['start']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)} - {pd.Timestamp(event['end']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)}"
                     )
 
                 self.log("  The following upcoming Free Electricty Events have been identified:")
                 for event in free_events:
-                    if event["code"] not in self.free_electricity_events and pd.Timestamp(
+                    event_key = event["code"] if event.get("code") is not None else f"id_{event.get('id', '?')}"
+                    if event_key not in self.free_electricity_events and pd.Timestamp(
                         event["end"], tz="UTC"
                     ) > pd.Timestamp.now(tz="UTC"):
                         self.log(
-                            f"{event['code']:8s}: {pd.Timestamp(event  ['start']).strftime(DATE_TIME_FORMAT_SHORT)} - {pd.Timestamp(event['end']).strftime(DATE_TIME_FORMAT_SHORT)}"
+                            f"{str(event_key):8s}: {pd.Timestamp(event['start']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)} - {pd.Timestamp(event['end']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)}"
                         )
-                        self.free_electricity_events[event["code"]] = event
+                        self.free_electricity_events[event_key] = event
 
         self.log("")
 
@@ -1872,7 +1878,7 @@ class PVOpt(hass.Hass):
             self.log("  The following upcoming Octopus Free Electricity Events are being applied:")
             for id in self.free_electricity_events:
                 self.log(
-                    f"{id:8s}: {pd.Timestamp(self.free_electricity_events[id]['start']).strftime(DATE_TIME_FORMAT_SHORT)} - {pd.Timestamp(self.free_electricity_events[id]['end']).strftime(DATE_TIME_FORMAT_SHORT)}"
+                    f"{str(id):8s}: {pd.Timestamp(self.free_electricity_events[id]['start']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)} - {pd.Timestamp(self.free_electricity_events[id]['end']).strftime(DATE_TIME_FORMAT_SHORT)}"
                 )
         else:
             self.log("No upcoming Octopus Free Electricity Events detected")
@@ -1886,7 +1892,7 @@ class PVOpt(hass.Hass):
         and write suppression is not needed."""
         if self.axle_event is None:
             return False
-        if not self.get_config("axle_allow_pvopt_writes"):
+        if self.get_config("axle_allow_pvopt_writes"):
             return False
         now = pd.Timestamp.now(tz="UTC")
         freq = pd.Timedelta(minutes=self.get_config("optimise_frequency_minutes"))
@@ -2283,6 +2289,60 @@ class PVOpt(hass.Hass):
         self.rlog("")
 
         self._expose_configs(over_write)
+
+    def _migrate_axle_write_polarity(self):
+        """
+        One-time migration for the axle_allow_pvopt_writes polarity fix.
+
+        Prior to this fix, _axle_writes_suspended() had its logic inverted, so
+        every existing installation was effectively running with writes NEVER
+        suppressed during Axle events, regardless of this switch's state. To
+        avoid a silent behaviour change for existing users on upgrade, if the
+        switch entity already exists and is currently 'off', flip it to 'on'
+        (preserving the "never suppressed" behaviour they were actually
+        experiencing). Marks itself done via a small retained marker entity so
+        it only ever runs once, and never overrides a deliberate choice made
+        after this fix has already applied.
+        """
+        marker_id = f"{self.prefix.lower()}_axle_write_polarity_migrated"
+        marker_entity = f"sensor.{marker_id}"
+
+        if self.entity_exists(marker_entity):
+            return
+
+        switch_entity = f"switch.{self.prefix.lower()}_axle_allow_pvopt_writes"
+
+        if self.entity_exists(switch_entity):
+            state = self.get_state_retry(entity_id=switch_entity)
+            if state is None:
+                self.log(
+                    f"  - Could not reliably read {switch_entity} during the axle_allow_pvopt_writes "
+                    "polarity migration check. Skipping for now; will retry on next restart.",
+                    level="WARNING",
+                )
+                return  # don't create the marker - retry next restart rather than skip silently
+
+            if state.strip().lower() == "off":
+                self.log(
+                    f"  - Migrating {switch_entity}: fixing axle_allow_pvopt_writes polarity bug. "
+                    "Setting to 'on' to preserve your pre-fix behaviour (writes were never "
+                    "suppressed during Axle events regardless of this switch). Set it to 'off' "
+                    "now if you actually want write suppression during the Axle event window.",
+                    level="WARNING",
+                )
+                self.set_state(state="on", entity_id=switch_entity)
+
+        conf_topic = f"homeassistant/sensor/{marker_id}/config"
+        state_topic = f"homeassistant/sensor/{marker_id}/state"
+        conf = {
+            "state_topic": state_topic,
+            "name": self._name_from_item("axle_write_polarity_migrated"),
+            "object_id": marker_id,
+            "unique_id": marker_id,
+        }
+        self.mqtt.mqtt_publish(conf_topic, dumps(conf), retain=True)
+        self.mqtt.mqtt_publish(state_topic, "applied", retain=True)
+
 
     def _name_from_item(self, item):
         name = item.replace("_", " ")
@@ -3224,7 +3284,7 @@ class PVOpt(hass.Hass):
 
                     elif self.charge_power < 0:
                         self.log("Charge Power <0")
-                        did_something = self.inverter.control_charge(enable=False)
+                        did_something = self.inverter.control_charge(enable=False, update_work_mode=False)
 
                         did_something = self.inverter.control_discharge(
                             enable=True,
@@ -3333,6 +3393,7 @@ class PVOpt(hass.Hass):
                             if status["charge"]["active"]:
                                 did_something = self.inverter.control_charge(
                                     enable=False,
+                                    update_work_mode=False,
                                 )
 
                             did_something = self.inverter.control_discharge(
