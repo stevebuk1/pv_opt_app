@@ -1,4 +1,4 @@
-## 1.0.7-Beta-3
+## 1.0.7-Beta-4
 Update Pv_opt to 5.1.8-Beta-5:
 - Bugfixes for #424
 - If on IOG, use the Octopus Energy Integration for pricing information in preference to the website (#459)
@@ -10,6 +10,7 @@ Update Pv_opt to 5.1.8-Beta-5:
 - Handle code=null in Free Electricity Sessions (https://github.com/stevebuk1/pv_opt_app/issues/52)
 - Add year to logging for Free Electricity Session Events (https://github.com/stevebuk1/pv_opt_app/issues/52)
 
+## 1.0.7-Beta-3
 Update Pv_opt to 5.1.8-Beta-3:
 - Fix error introduced in last commit. 
 
