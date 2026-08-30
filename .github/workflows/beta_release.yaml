@@ -37,6 +37,11 @@ jobs:
         run: |
           sed -i 's/^name:.*/name: PV Opt Beta/' beta_repo/pv_opt_addon/config.yaml
           sed -i 's|^url:.*|url: https://github.com/stevebuk1/pv_opt_app_beta|' beta_repo/pv_opt_addon/config.yaml
+          # Give the beta add-on its own slug — sharing "pv_opt" with the stable repo
+          # causes Supervisor to collide the two add-ons' internal records (state vs
+          # version attributes getting written/read against the wrong entry), even
+          # though the frontend papers over it with a "_2" suffixed entity_id.
+          sed -i 's/^slug:.*/slug: pv_opt_beta/' beta_repo/pv_opt_addon/config.yaml
           # Remove image: field so Supervisor builds the image locally from the Dockerfile
           # rather than trying to pull a pre-built image that doesn't exist in ghcr.io.
           # This restores the pre-builder.yaml convenience for beta testing — no manual
