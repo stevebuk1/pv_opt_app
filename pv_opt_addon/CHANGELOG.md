@@ -1,3 +1,8 @@
+## 1.0.7-Beta-5
+Update Pv_opt to 5.1.8-Beta-6:
+- Further bugfix in Free Electricity Sessions (https://github.com/stevebuk1/pv_opt_app/issues/52)
+- Correct error in event start/event end windowing for Saving Sessions and Free Electricity Sessions
+
 ## 1.0.7-Beta-4
 Update Pv_opt to 5.1.8-Beta-5:
 - Bugfixes for #424
