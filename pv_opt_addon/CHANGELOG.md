@@ -1,7 +1,8 @@
 ## 1.0.7-Beta-6
 Update Pv_opt to 5.1.9-Beta-2:
 - Report stale "planned_dispatches" attribute from the Octopus Energy Integration in Pv_opt log
-- Always write all six slots when writing to Sunsynk inverter. 
+- Always write all six slots when writing to Sunsynk inverter.
+
 Update Pv_opt to 5.1.9-Beta-1:
 - Solar is impacting charge rate when its irrelevant, correct this.
 - Correct bug in charge algorithm that add swaps to last 1 hour of overnight cheap rate when it should spread over all cheap slots
