@@ -1,3 +1,8 @@
+## 1.0.7-Beta-7
+Update Pv_opt to 5.1.9-Beta-3:
+- Introduce support for Octopus Free Sunday Sessions (needs opt-in via email)
+- Sunsynk - remove erroneous mapping of battery voltage to battery current sensor. 
+
 ## 1.0.7-Beta-6
 Update Pv_opt to 5.1.9-Beta-2:
 - Report stale "planned_dispatches" attribute from the Octopus Energy Integration in Pv_opt log
