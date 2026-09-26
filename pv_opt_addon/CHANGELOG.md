@@ -18,7 +18,6 @@ Update Pv_opt to 5.1.9:
 - Add year to logging for Free Electricity Session Events (#52)
 - Bugfix for "TypeError: unsupported operand type(s) for /: 'str' and 'int'" by utilising historic SOC if current SOC read fails.
 - Bugfix for #44
-
 - Sunsynk further development:
    - Add awareness of charger_power_watts to Sunsynk integration
    - Always write all six slots when writing to Sunsynk inverter.
@@ -27,8 +26,6 @@ Update Pv_opt to 5.1.9:
 
 ## 1.0.7-Beta-1
 Update Pv_opt to 5.1.8-Beta-1:
-
-
 
 ## 1.0.6
 Update Pv_opt to 5.1.7:
