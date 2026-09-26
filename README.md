@@ -1,5 +1,5 @@
 # PV Opt App: Home Assistant Solar/Battery Optimiser 
-App (AddOn) v1.0.6, utilising Pv_opt v5.1.7. 
+App (AddOn) v1.0.7, utilising Pv_opt v5.1.9. 
 
 <h2>Introduction</h2>
 
@@ -80,7 +80,7 @@ At present this app works directly with Solis hybrid inverters using one of the 
 
 <h4>HA Core Modbus</h4>
 
-Follow the Github instructions here: https://github.com/stevebuk1/ha_solis_modbus
+Follow the Github instructions here: https://github.com/fboundy/ha_solis_modbus
 
 <h4>Using Solis Cloud</h4>
 <h5>Solis-Sensor</h5>
@@ -289,7 +289,7 @@ Import and/or export tarifs can be set manually as follows. These can be combine
 
 | Parameter                  |   Units    | Entity                       | Default | Description                                                                                              |
 | :------------------------- | :--------: | :--------------------------- | :-----: | :------------------------------------------------------------------------------------------------------- |
-| Pv_opt control during Axle events   |  `True/False`  | `switch.pv_opt_axle_allow_pvopt_writes`      | True | Allow Pv_opt to write to inverter during Axle Energy events. Axle should control your inverter during an event but has been known to start late or not at all. Until Axle fix this it is recommended that Pv_opt should also control your inverter, which given the current export price will almost certainly schedule an export event and as such there will be no conflicts.                                                      |
+| Pv_opt control during Axle events   |  `True/False`  | `switch.pv_opt_axle_allow_pvopt_writes`      | True | Allow Pv_opt to write to inverter during Axle Energy events. Axle should control your inverter during an event but has been known to start late or not at all. Until Axle fix this it is recommended that Pv_opt should also control your inverter, which given the current export price will almost certainly schedule an export event and as such there will be no conflicts.  Note: a fix released at v5.1.8-Beta-5 corrects an inversion error and will set this to True as a one time event. Storage of applying the fix will be via creation of a new entity 'sensor.pvopt_axle_write_polarity_migrated'                                                      |
 | Axle Energy export price   |  pence  | `number.pvopt_axle_export_rate_p`   |  100p   | Price for Axle Energy Export events. Defaults to 100p which is the current price Axle offer for all events. Change it here if it changes.                                                           |
 
 
@@ -436,16 +436,6 @@ The active car charging plan result is then output at the right time on binary_s
 An example automation for a Zappi charger is available here: https://github.com/stevebuk1/pv_opt/blob/main/files/zappi_automation.yaml
 
 Notes: at the current release, the Agile EV charger only schedules charging for a complete half hour slot. The ability to schedule partial slots to allow a more accurate car SOC to be obtained is future work.
-
-<h2> Known Issues</h2>
-
-<h3>Docker MariaDB Cache Size</h3>
-
-If you are using MariaDB for your database in a standalone container (ie Docker or Proxmox) rather than the Home Assistnt Add-On you may find that AppDaemon struggles to pull in enough history with the default cache settings.
-
-MariaDB defaults to an in memory cache of 10MB. increasing `innodb_buffer_pool_size` to will allow more history to be transferred. This setting does not appear to be available in the Add-On configuration.
-
-Full details are here: https://github.com/stevebuk1/pv_opt/issues/270
 
 <h2>Development - Adding Additional Inverters: the PV Opt API</h2>
 

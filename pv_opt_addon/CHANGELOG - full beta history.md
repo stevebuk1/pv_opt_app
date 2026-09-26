@@ -1,3 +1,51 @@
+## 1.0.7-Beta-7
+Update Pv_opt to 5.1.9-Beta-3:
+- Introduce support for Octopus Free Sunday Sessions (needs opt-in via email)
+- Sunsynk - remove erroneous mapping of battery voltage to battery current sensor. 
+
+## 1.0.7-Beta-6
+Update Pv_opt to 5.1.9-Beta-2:
+- Report stale "planned_dispatches" attribute from the Octopus Energy Integration in Pv_opt log
+- Always write all six slots when writing to Sunsynk inverter.
+
+Update Pv_opt to 5.1.9-Beta-1:
+- Solar is impacting charge rate when its irrelevant, correct this.
+- Correct bug in charge algorithm that add swaps to last 1 hour of overnight cheap rate when it should spread over all cheap slots
+- Add awareness of charger_power_watts to Sunsynk integration
+
+## 1.0.7-Beta-5
+Update Pv_opt to 5.1.8-Beta-6:
+- Further bugfix in Free Electricity Sessions (https://github.com/stevebuk1/pv_opt_app/issues/52)
+- Correct error in event start/event end windowing for Saving Sessions and Free Electricity Sessions
+
+## 1.0.7-Beta-4
+Update Pv_opt to 5.1.8-Beta-5:
+- Bugfixes for #424
+- If on IOG, use the Octopus Energy Integration for pricing information in preference to the website (#459)
+- Bugfix - axle_allow_pv_opt_writes is inverted.
+
+       Note: commit includes a fix to make a onetime write to switch.pvopt_axle_allow_pvopt_writes to set it to True, 
+       and will store it has done this by creating a new entity sensor.pvopt_axle_write_polarity_migrated. (#479)
+  
+- Handle code=null in Free Electricity Sessions (https://github.com/stevebuk1/pv_opt_app/issues/52)
+- Add year to logging for Free Electricity Session Events (https://github.com/stevebuk1/pv_opt_app/issues/52)
+
+## 1.0.7-Beta-3
+Update Pv_opt to 5.1.8-Beta-3:
+- Fix error introduced in last commit. 
+
+## 1.0.7-Beta-2
+Update Pv_opt to 5.1.8-Beta-2:
+- Bugfix for "TypeError: unsupported operand type(s) for /: 'str' and 'int'" by
+  Utilising historic SOC if current SOC read fails.
+
+## 1.0.7-Beta-1
+Update Pv_opt to 5.1.8-Beta-1:
+- Bugfix to address stevebuk1/pv_opt_app#44
+
+## 1.0.6
+Update Pv_opt to 5.1.7:
+- Bugfix for error message "AttributeError: 'NoneType' object has no attribute 'keys'" when loading free electricity sessions (no issue raised)
 ## 1.0.6
 Update Pv_opt to 5.1.7:
 Bugfix for error message "AttributeError: 'NoneType' object has no attribute 'keys'" when loading free electricity sessions (no issue raised)

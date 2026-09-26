@@ -1,3 +1,27 @@
+
+## 1.0.7
+Update Pv_opt to 5.1.9:
+- Bugfix for IOG slot pricing (stevebuk1/pv_opt#479)
+- Add warning to startup if Axle entities not found (https://github.com/stevebuk1/pv_opt/issues/474))
+- Introduce support for Octopus Free Sunday Sessions (needs opt-in via email)
+- Report stale "planned_dispatches" attribute from the Octopus Energy Integration in Pv_opt log
+- Solar is impacting charge rate when its irrelevant, correct this.
+- Correct bug in charge algorithm that add swaps to last 1 hour of overnight cheap rate when it should spread over all cheap slots
+- Correct error in event start/event end windowing for Saving Sessions and Free Electricity Sessions
+- If on IOG, use the Octopus Energy Integration for pricing information in preference to the website ([#459](https://github.com/stevebuk1/pv_opt/issues/459))
+- Bugfix - axle_allow_pv_opt_writes is inverted.
+   - Note: commit includes a fix to make a onetime write to switch.pvopt_axle_allow_pvopt_writes to set it to True, and will store it has done this by creating a new entity sensor.pvopt_axle_write_polarity_migrated. (#479)
+- Handle code=null in Free Electricity Sessions (stevebuk1/pv_opt_app#52)
+- Further bugfix in Free Electricity Sessions (stevebuk1/pv_opt_app#52)
+- Add year to logging for Free Electricity Session Events (stevebuk1/pv_opt_app#52)
+- Bugfix for "TypeError: unsupported operand type(s) for /: 'str' and 'int'" by utilising historic SOC if current SOC read fails.
+- Bugfix for stevebuk1/pv_opt_app#44)
+- Sunsynk further development:
+   - Add awareness of charger_power_watts to Sunsynk integration
+   - Always write all six slots when writing to Sunsynk inverter.
+   - Sunsynk - remove erroneous mapping of battery voltage to battery current sensor (https://github.com/stevebuk1/pv_opt/issues/424). 
+   - Bugfixes for Sunsynk (https://github.com/stevebuk1/pv_opt/issues/424)
+
 ## 1.0.6
 Update Pv_opt to 5.1.7:
 - Bugfix for error message "AttributeError: 'NoneType' object has no attribute 'keys'" when loading free electricity sessions (no issue raised)

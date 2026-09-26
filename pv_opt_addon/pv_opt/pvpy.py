@@ -90,7 +90,7 @@ class Tariff:
         if host is None:
             self.log = print
             self.rlog = print
-            self.tz = "GB"
+            self.tz = "Europe/London"
         else:
             self.log = host.log
             self.rlog = host.rlog
@@ -114,21 +114,11 @@ class Tariff:
 
         self.host.io_prices = {}
 
-        if octopus:
-            self.get_octopus_from_website(**kwargs)
-            # self.log("")
-            # self.log("Returned from get_octopus_from_website")
-        else:
+        # Try to find Octopus Intelligent/IOG rates from the Octopus Energy Integration
+        # *before* touching the website - the public product catalog has been unreliable
+        # for these tariffs (see BottlecapDave #1708), while the Integration's own
+        # rates entities give correct, personalised, dispatch-aware pricing directly.
 
-            if self.manual:
-                self.unit = unit
-                self.fixed = fixed
-            else:
-                self.fixed = [{"value_inc_vat": fixed, "valid_from": valid_from}]
-                self.unit = [{"value_inc_vat": unit, "valid_from": valid_from}]
-                if eco7:
-                    self.day = [{"value_inc_vat": day, "valid_from": valid_from}]
-                    self.night = [{"value_inc_vat": night, "valid_from": valid_from}]
 
         if ("INTELLI" in name or "IOG" in name) and not self.export:
             if self.host.get_config("octopus_auto"):
@@ -154,6 +144,24 @@ class Tariff:
                         "Failed to find Octopus Intellgient tariffs from Octopus Energy Integration, extra IO slots will not be loaded",
                         level="WARNING",
                     )
+
+        if octopus:
+            self.get_octopus_from_website(**kwargs)
+            # self.log("")
+            # self.log("Returned from get_octopus_from_website")
+        else:
+
+            if self.manual:
+                self.unit = unit
+                self.fixed = fixed
+            else:
+                self.fixed = [{"value_inc_vat": fixed, "valid_from": valid_from}]
+                self.unit = [{"value_inc_vat": unit, "valid_from": valid_from}]
+                if eco7:
+                    self.day = [{"value_inc_vat": day, "valid_from": valid_from}]
+                    self.night = [{"value_inc_vat": night, "valid_from": valid_from}]
+
+
 
     def _oct_time(self, d):
         # print(d)
@@ -202,6 +210,17 @@ class Tariff:
             ]
             self.unit = self.day
 
+        elif not self.export and len(self.host.io_prices) > 0:
+            # Intelligent Octopus Go / IOG: use the Octopus Energy Integration's own
+            # rates directly rather than the public product catalog, which has been
+            # unreliable for this tariff type.
+            self.log(
+                "    Using rates from Octopus Energy Integration directly for Intelligent tariff "
+                "(skipping public product-catalog lookup)"
+            )
+            self.unit = [
+                {"valid_from": ts.isoformat(), "value_inc_vat": v} for ts, v in self.host.io_prices.items()
+            ]
         else:
             url = f"{OCTOPUS_PRODUCT_URL}{product}/electricity-tariffs/{code}/standard-unit-rates/"
             self.unit = requests.get(url, params=params).json()["results"]
@@ -209,6 +228,8 @@ class Tariff:
                 raise ValueError(
                     f"Octopus API returned no standard-unit-rates for tariff '{code}' (product '{product}'). URL: {url}"
                 )
+
+            
             # SVB logging
             # self.log("")
             # self.log("Printing self.unit")
@@ -427,7 +448,7 @@ class Tariff:
                     self.log(f"event_start = {event_start}")
                     self.log(f"event_end = {event_end}")
 
-                if event_start <= end or event_end > start and event_value > 0:
+                if event_start <= end and event_end > start and event_value > 0:
                     event_start = max(event_start, start)
                     event_end = min(event_end - pd.Timedelta(30, "minutes"), end)
 
@@ -441,9 +462,11 @@ class Tariff:
                     df.loc[event_start:event_end, "unit"] += event_value
 
         # Update for Free Electricity Events if they exist
+        # Import only - export is still paid at the normal rate during a Power Up session
 
-        if (self.host is not None) and ("unit" in df.columns):
+        if (self.host is not None) and ("unit" in df.columns) and (not self.export):
             events = self.host.free_electricity_events
+
             for id in events:
                 event_start = pd.Timestamp(events[id]["start"]).floor("30min")
                 event_end = pd.Timestamp(events[id]["end"]).ceil("30min")
@@ -465,7 +488,7 @@ class Tariff:
                     self.log(f"event_start = {event_start}")
                     self.log(f"event_end = {event_end}")
 
-                if event_start <= end or event_end > start and event_value > 0:
+                if event_start <= end and event_end > start:
                     event_start = max(event_start, start)
                     event_end = min(event_end - pd.Timedelta(30, "minutes"), end)
 
@@ -474,7 +497,7 @@ class Tariff:
                         self.log("")
                         self.log(f"event_start = {event_start}")
                         self.log(f"event_end = {event_end}")
-                        self.log(f"event_value = {event_value}")
+                        # self.log(f"event_value = {event_value}")
 
                     # Set import cost to zero on Free electricity sessions
                     # Note - this is a simplification, as free use is only over and above normal use
@@ -673,7 +696,7 @@ class Contract:
         else:
             self.log = print
             self.rlog = print
-            self.tz = "GB"
+            self.tz = "Europe/London"
 
         if imp is None and octopus_account is None:
             raise ValueError("Either a named import tariff or Octopus Account details much be provided")
@@ -838,7 +861,7 @@ class PVsystemModel:
             self.tz = host.tz
         else:
             self.log = print
-            self.tz = "GB"
+            self.tz = "Europe/London"
         self.prices = None
         self.static_flows = None
         self.solar_id = "solar"
@@ -1216,7 +1239,19 @@ class PVsystemModel:
 
                             tolerance = self.host.get_config("forced_power_group_tolerance")
                             window_hours = search_window["dt_hours"].loc[window].sum()
-                            if slot_power_required < (tolerance / 2) and window_hours > 3.5:
+
+                            # Energy already committed to this window by earlier swaps, plus what this swap
+                            # would add, spread evenly across the whole window - not just this swap's own
+                            # marginal slice.
+
+                            existing_energy_wh = (
+                                search_window["forced"].loc[window] * search_window["dt_hours"].loc[window]
+                            ).sum()
+                            projected_avg_power = (
+                                existing_energy_wh + round_trip_energy_required * 1000
+                            ) / window_hours
+
+                            if projected_avg_power < (tolerance / 2) and window_hours > 3.5:
                                 window = window[-2:]
                                 slot_power_required = (
                                     round_trip_energy_required * 1000 / search_window["dt_hours"].loc[window].sum()
@@ -1231,8 +1266,8 @@ class PVsystemModel:
                                 for slot in window:
                                     slot_charger_power_available = max(
                                         self.inverter.charger_power
-                                        - search_window["forced"].loc[slot]
-                                        - search_window["solar"].loc[slot],
+                                        - search_window["forced"].loc[slot],
+                                    #     - search_window["solar"].loc[slot],  # certain this isnt required. Forced is what the battery charges at, independent of solar
                                         0,
                                     )
                                     slot_available_capacity = max(
