@@ -24,9 +24,6 @@ Update Pv_opt to 5.1.9:
    - Sunsynk - remove erroneous mapping of battery voltage to battery current sensor (https://github.com/stevebuk1/pv_opt/issues/424). 
    - Bugfixes for Sunsynk (https://github.com/stevebuk1/pv_opt/issues/424)
 
-## 1.0.7-Beta-1
-Update Pv_opt to 5.1.8-Beta-1:
-
 ## 1.0.6
 Update Pv_opt to 5.1.7:
 - Bugfix for error message "AttributeError: 'NoneType' object has no attribute 'keys'" when loading free electricity sessions (no issue raised)
