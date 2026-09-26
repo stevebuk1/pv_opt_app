@@ -1,6 +1,6 @@
 ## 1.0.8
 Update Pv_opt to 5.1.10:
-- Last two code changes in changelog inadvertantely omitted:
+- Last two entries in changelog inadvertently omitted from release - added:
   - Bugfix for IOG slot pricing (stevebuk1/pv_opt#479)
   - Add warning to startup if Axle entities not found (https://github.com/stevebuk1/pv_opt/issues/474)
 
