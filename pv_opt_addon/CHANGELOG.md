@@ -7,7 +7,6 @@ Update Pv_opt to 5.1.9:
 - Report stale "planned_dispatches" attribute from the Octopus Energy Integration in Pv_opt log
 - Solar is impacting charge rate when its irrelevant, correct this.
 - Correct bug in charge algorithm that add swaps to last 1 hour of overnight cheap rate when it should spread over all cheap slots
-
 - Correct error in event start/event end windowing for Saving Sessions and Free Electricity Sessions
 - If on IOG, use the Octopus Energy Integration for pricing information in preference to the website ([#459](https://github.com/stevebuk1/pv_opt/issues/459))
 - Bugfix - axle_allow_pv_opt_writes is inverted.
