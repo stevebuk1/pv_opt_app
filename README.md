@@ -437,16 +437,6 @@ An example automation for a Zappi charger is available here: https://github.com/
 
 Notes: at the current release, the Agile EV charger only schedules charging for a complete half hour slot. The ability to schedule partial slots to allow a more accurate car SOC to be obtained is future work.
 
-<h2> Known Issues</h2>
-
-<h3>Docker MariaDB Cache Size</h3>
-
-If you are using MariaDB for your database in a standalone container (ie Docker or Proxmox) rather than the Home Assistnt Add-On you may find that AppDaemon struggles to pull in enough history with the default cache settings.
-
-MariaDB defaults to an in memory cache of 10MB. increasing `innodb_buffer_pool_size` to will allow more history to be transferred. This setting does not appear to be available in the Add-On configuration.
-
-Full details are here: https://github.com/stevebuk1/pv_opt/issues/270
-
 <h2>Development - Adding Additional Inverters: the PV Opt API</h2>
 
 PV Opt is designed to be <i>pluggable</i>. A simple API is used to control inverters. This is defined as follows:
