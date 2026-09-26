@@ -11,8 +11,7 @@ Update Pv_opt to 5.1.9:
 - Correct error in event start/event end windowing for Saving Sessions and Free Electricity Sessions
 - If on IOG, use the Octopus Energy Integration for pricing information in preference to the website ([#459](https://github.com/stevebuk1/pv_opt/issues/459))
 - Bugfix - axle_allow_pv_opt_writes is inverted.
-       Note: commit includes a fix to make a onetime write to switch.pvopt_axle_allow_pvopt_writes to set it to True, 
-       and will store it has done this by creating a new entity sensor.pvopt_axle_write_polarity_migrated. (#479)
+   - Note: commit includes a fix to make a onetime write to switch.pvopt_axle_allow_pvopt_writes to set it to True, and will store it has done this by creating a new entity sensor.pvopt_axle_write_polarity_migrated. (#479)
 - Handle code=null in Free Electricity Sessions (#52)
 - Add year to logging for Free Electricity Session Events (#52)
 - Bugfix for "TypeError: unsupported operand type(s) for /: 'str' and 'int'" by utilising historic SOC if current SOC read fails.
