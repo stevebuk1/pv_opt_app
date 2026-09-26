@@ -1,7 +1,7 @@
 
 ## 1.0.7
 Update Pv_opt to 5.1.9:
-- Bugfix for stevebuk1/pv_opt#479
+- Bugfix for IOG slot pricing (stevebuk1/pv_opt#479)
 - Add warning to startup if Axle entities not found (https://github.com/stevebuk1/pv_opt/issues/474))
 - Introduce support for Octopus Free Sunday Sessions (needs opt-in via email)
 - Report stale "planned_dispatches" attribute from the Octopus Energy Integration in Pv_opt log
