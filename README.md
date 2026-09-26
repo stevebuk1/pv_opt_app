@@ -80,7 +80,7 @@ At present this app works directly with Solis hybrid inverters using one of the 
 
 <h4>HA Core Modbus</h4>
 
-Follow the Github instructions here: https://github.com/stevebuk1/ha_solis_modbus
+Follow the Github instructions here: https://github.com/fboundy/ha_solis_modbus
 
 <h4>Using Solis Cloud</h4>
 <h5>Solis-Sensor</h5>
