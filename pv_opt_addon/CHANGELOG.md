@@ -1,5 +1,5 @@
 ## 1.0.7
-Update Pv_opt to 5.1.9:
+Update Pv_opt to 5.1.9
 - Bugfix for #479
 - Add warning to startup if Axle entities not found (#474)
 - Introduce support for Octopus Free Sunday Sessions (needs opt-in via email)
