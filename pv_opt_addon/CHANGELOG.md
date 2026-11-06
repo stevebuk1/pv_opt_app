@@ -1,3 +1,13 @@
+## 1.0.10-Beta-1
+
+- ha_interface.py - Prevent Pv_opt crash when trying to create entities that have timestamps or other unexpected types. 
+
+Update Pv_opt to 5.1.12-Beta-1:
+- Bugfix for Pv_opt crash trying to create Entities that have timestamps (affects App version only) (https://github.com/stevebuk1/pv_opt_app/issues/57)
+- Put historic Octopus events behind a debugging switch 
+- Log (but don't autojoin) available power up events (free sunday sessions) (https://github.com/stevebuk1/pv_opt/issues/477)
+- Trial bugfix for preventing oscillations on slider toggles (https://github.com/stevebuk1/pv_opt/issues/481)
+
 ## 1.0.9
 Update Pv_opt to 5.1.11:
 - Fix compatibility with Solax Modbus 2026.11.02 onwards (stevebuk1/pv_opt_app#58)

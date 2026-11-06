@@ -170,7 +170,7 @@ class MQTTShim:
 
     def mqtt_publish(self, topic: str, payload: Any, retain: bool = False, **kwargs):
         if not isinstance(payload, str):
-            payload = json.dumps(payload)
+            payload = json.dumps(payload, default=str) 
         self._client.publish(topic, payload, retain=retain)
 
     def mqtt_subscribe(self, topic: str, callback: Optional[Callable] = None):
