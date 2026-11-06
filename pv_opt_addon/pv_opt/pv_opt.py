@@ -21,7 +21,7 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-VERSION = "5.1.11"
+VERSION = "5.1.12-Beta-1"
 
 UNITS = {
     "current": "A",
@@ -50,7 +50,7 @@ DEBUG = False
 # I = inverter control/commands Logging
 # E = EV Logging
 # L = Solcast logging
-# Z = Savings Events logging
+# Z = Savings Events / Free Electricity Events logging
 
 # Default is all, include desired string in Config.yaml to enable filtering
 
@@ -1897,19 +1897,35 @@ class PVOpt(hass.Hass):
                 self.redact_regex.append(octopus_account)
                 self.redact_regex.append(octopus_account.lower().replace("-", "_"))
 
-            free_events = self.get_state_retry(free_electricity_events_entity, attribute="all")["attributes"]["events"]
+            free_attributes = self.get_state_retry(free_electricity_events_entity, attribute="all")["attributes"]
+            free_events = free_attributes.get("events", [])
+            available_free_events = free_attributes.get("available_events", [])
 
-            # The logging in this if statement should be hidden behind a debugging switch
-            if len(free_events) > 0:
-
-                self.log("  The following Free Electricty Events have been identified:")
-                for event in free_events:
+            # Report (but do not join or apply) Free Electricity events on offer, e.g. Sunday events.
+            # The slot has to be chosen in the Octopus app.
+            upcoming_available = [
+                e for e in available_free_events
+                if pd.Timestamp(e["end"], tz="UTC") > pd.Timestamp.now(tz="UTC")
+            ]
+            if len(upcoming_available) > 0:
+                self.log("  The following Free Electricity Events are available (not joined):")
+                for event in upcoming_available:
                     event_key = event["code"] if event.get("code") is not None else f"id_{event.get('id', '?')}"
-                    if event.get("code") is None:
-                        self.log(f"  Event id={event.get('id', '?')} has no event code from the integration - will use '{event_key}' as key")
                     self.log(
                         f"{str(event_key):8s}: {pd.Timestamp(event['start']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)} - {pd.Timestamp(event['end']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)}"
                     )
+
+            if len(free_events) > 0:
+
+                if self.debug and "Z" in self.debug_cat:
+                    self.log("  The following Free Electricty Events have been identified:")
+                    for event in free_events:
+                        event_key = event["code"] if event.get("code") is not None else f"id_{event.get('id', '?')}"
+                        if event.get("code") is None:
+                            self.log(f"  Event id={event.get('id', '?')} has no event code from the integration - will use '{event_key}' as key")
+                        self.log(
+                            f"{str(event_key):8s}: {pd.Timestamp(event['start']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)} - {pd.Timestamp(event['end']).strftime(DATE_TIME_FORMAT_SHORT_YEAR)}"
+                        )
 
                 self.log("  The following upcoming Free Electricty Events have been identified:")
                 for event in free_events:
@@ -2428,6 +2444,9 @@ class PVOpt(hass.Hass):
                 state = "off"
         elif isinstance(value, list):
             state = value[0]
+        elif isinstance(value, (pd.Timestamp, datetime)):
+            # e.g. test_button default. MQTT payloads must be plain strings
+            state = value.isoformat()
         else:
             state = value
         return state
@@ -2582,14 +2601,33 @@ class PVOpt(hass.Hass):
             return
 
         def _same(a, b):
-            if isinstance(a, str) and isinstance(b, str):
-                return a.strip().lower() == b.strip().lower()
-            return a == b
+            if a is None or b is None:
+                return a == b
+            a_s, b_s = str(a).strip().lower(), str(b).strip().lower()
+            if a_s == b_s:
+                return True
+            try:
+                return float(a_s) == float(b_s)
+            except ValueError:
+                return False
  
         if _same(new, old):
             # No genuine change — avoid re-publishing/re-triggering on echoes
             # of our own retained messages
             self.config_state[item] = new
+            return
+
+        # Stale-event guard: queued events carry old/new snapshots, so an echo
+        # ping-pong (40<->30) never has new == old. Compare against the live
+        # value instead and drop events that have already been superseded.
+        if "." in entity_id:
+            current = self.get_state(entity_id)
+            if current is not None and not _same(current, new):
+                self.log(f"Ignoring stale state change for {entity_id}: event says {new}, HA now has {current}", level="DEBUG")
+                return
+        elif _same(new, self.config_state.get(item)):
+            # /set topic replay (e.g. retained message on reconnect) that
+            # matches what we already hold — nothing to publish
             return
 
 
