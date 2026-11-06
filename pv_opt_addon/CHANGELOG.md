@@ -1,3 +1,7 @@
+## 1.0.9
+Update Pv_opt to 5.1.11:
+- Fix compatibility with Solax Modbus 2026.11.02 onwards (stevebuk1/pv_opt_app#58)
+
 ## 1.0.8
 Update Pv_opt to 5.1.10:
 - Last two entries in changelog inadvertently omitted from release - added:
