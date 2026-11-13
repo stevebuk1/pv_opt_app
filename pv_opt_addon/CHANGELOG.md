@@ -1,3 +1,28 @@
+## 1.0.10
+
+- ha_interface.py - Prevent Pv_opt crash when trying to create entities that have timestamps or other unexpected types (stevebuk1/pv_opt_app/issues/57). 
+
+Update Pv_opt to 5.1.12:
+- Bugfix for Pv_opt crash when trying to generate entities that are based on timstamps (Affects App version only) (stevebuk1/pv_opt_app/issues/57)
+- Bugfix for preventing continuous writes on slider toggles (https://github.com/stevebuk1/pv_opt/issues/481)
+- Charge to 100%, ensure it only uses next block, rather than selecting optimum block (https://github.com/stevebuk1/pv_opt/issues/485)
+- Bugfix - axle_allow_pv_opt_writes is inverted (https://github.com/stevebuk1/pv_opt/issues/483)
+  This was fixed in v5.1.10, but the onetime write to switch.pvopt_axle_allow_pvopt_writes to set it to True may not have
+  worked on all systems. Repeat this one time write, and log its completion via creation of new entity sensor.pvopt_axle_write_polarity_migrated_v2.
+- If insufficient consumption history is available from HA, curtail read to nearest 1 week boundary. (https://github.com/stevebuk1/pv_opt/issues/487)
+- Remove historic Octopus Events from being added to log file (no issue raised)
+- Log (but don't autojoin) free Sunday sessions. (Join Sunday sessions via the Octopus App). (no issue raised)
+
+## 1.0.10-Beta-1
+
+- ha_interface.py - Prevent Pv_opt crash when trying to create entities that have timestamps or other unexpected types. 
+
+Update Pv_opt to 5.1.12-Beta-1:
+- Bugfix for Pv_opt crash trying to create Entities that have timestamps (affects App version only) (https://github.com/stevebuk1/pv_opt_app/issues/57)
+- Put historic Octopus events behind a debugging switch 
+- Log (but don't autojoin) available power up events (free sunday sessions) (https://github.com/stevebuk1/pv_opt/issues/477)
+- Trial bugfix for preventing oscillations on slider toggles (https://github.com/stevebuk1/pv_opt/issues/481)
+
 ## 1.0.9
 Update Pv_opt to 5.1.11:
 - Fix compatibility with Solax Modbus 2026.11.02 onwards (stevebuk1/pv_opt_app#58)
