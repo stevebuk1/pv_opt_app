@@ -21,7 +21,7 @@ import pandas as pd
 import pvpy as pv
 from numpy import nan
 
-VERSION = "5.1.12-Beta-1"
+VERSION = "5.1.12"
 
 UNITS = {
     "current": "A",
@@ -1958,7 +1958,9 @@ class PVOpt(hass.Hass):
         and write suppression is not needed."""
         if self.axle_event is None:
             return False
-        if self.get_config("axle_allow_pvopt_writes"):
+        # Only suppress writes when the switch is explicitly OFF.
+        # None (unknown/unavailable state) falls back to the documented default of True (allow writes).
+        if self.get_config("axle_allow_pvopt_writes") is not False:
             return False
         now = pd.Timestamp.now(tz="UTC")
         freq = pd.Timedelta(minutes=self.get_config("optimise_frequency_minutes"))
@@ -2389,8 +2391,11 @@ class PVOpt(hass.Hass):
         experiencing). Marks itself done via a small retained marker entity so
         it only ever runs once, and never overrides a deliberate choice made
         after this fix has already applied.
+
+        10/11/2022, this may not have worked on all systems, so have a 2nd go, marker renamed by 
+        suffixing with "_v2"
         """
-        marker_id = f"{self.prefix.lower()}_axle_write_polarity_migrated"
+        marker_id = f"{self.prefix.lower()}_axle_write_polarity_migrated_v2"
         marker_entity = f"sensor.{marker_id}"
 
         if self.entity_exists(marker_entity):
@@ -2418,12 +2423,30 @@ class PVOpt(hass.Hass):
                 )
                 self.set_state(state="on", entity_id=switch_entity)
 
+                # set_state only updates HA's state machine. The switch is MQTT-backed, so also
+                # publish the retained topics or the old "OFF" returns on the next MQTT update / HA restart.
+
+                switch_id = switch_entity.split(".", 1)[1]
+                self.mqtt.mqtt_publish(f"homeassistant/switch/{switch_id}/state", "ON", retain=True)
+                self.mqtt.mqtt_publish(f"homeassistant/switch/{switch_id}/set", "ON", retain=True)
+                # get_config() reads config_state first, and _load_args() filled it before this ran
+                self.config_state["axle_allow_pvopt_writes"] = "on"
+
+
+        # Remove the original (v1) marker. An empty retained payload clears the retained
+        # discovery config and state topics, which removes the entity from HA.
+        legacy_marker_id = f"{self.prefix.lower()}_axle_write_polarity_migrated"
+        self.mqtt.mqtt_publish(f"homeassistant/sensor/{legacy_marker_id}/config", "", retain=True)
+        self.mqtt.mqtt_publish(f"homeassistant/sensor/{legacy_marker_id}/state", "", retain=True)
+
         conf_topic = f"homeassistant/sensor/{marker_id}/config"
         state_topic = f"homeassistant/sensor/{marker_id}/state"
+
         conf = {
             "state_topic": state_topic,
-            "name": self._name_from_item("axle_write_polarity_migrated"),
-            "object_id": marker_id,
+            "name": self._name_from_item("axle_write_polarity_migrated_v2"),
+            "object_id": marker_id,                      # older HA
+            "default_entity_id": f"sensor.{marker_id}",  # newer HA; object_id support is being removed
             "unique_id": marker_id,
         }
         self.mqtt.mqtt_publish(conf_topic, dumps(conf), retain=True)
@@ -2483,7 +2506,8 @@ class PVOpt(hass.Hass):
                         "command_topic": command_topic,
                         "name": self._name_from_item(item),
                         "optimistic": True,
-                        "object_id": id,
+                        "object_id": id,                 # older HA
+                        "default_entity_id": entity_id,  # newer HA; object_id support is being removed
                         "unique_id": id,
                     }
                     | attributes
@@ -4564,6 +4588,12 @@ class PVOpt(hass.Hass):
                     for week in range(1, days // 7 + 1):
                         start_dow_n = now_floor - pd.Timedelta(days=7 * week)
                         slice_n = dfx.loc[start_dow_n : start_dow_n + pd.Timedelta(hours=95, minutes=30)].iloc[:96]
+                        if start_dow_n < dfx.index[0]:
+                            self.log(
+                                f"  - WARNING: consumption_history_days is {days}, but week {week} of day-of-week weighting needs history from {start_dow_n.strftime(DATE_TIME_FORMAT_SHORT)} and history only starts at {dfx.index[0].strftime(DATE_TIME_FORMAT_SHORT)}. Using {week - 1} week(s). Reduce consumption_history_days or wait for more history to build.",
+                                level="WARNING",
+                            )
+                            break
 
                         if len(slice_n) > 80:
                             dow_slices.append(slice_n.values)
